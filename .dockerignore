@@ -1,0 +1,45 @@
+node_modules
+.git
+.gitignore
+.claude
+.env
+.env.*
+*.log
+.next
+.medusa
+coverage
+postgres-data
+redis-data
+backups
+
+# Exclude secrets and local metadata at every context depth
+**/.env
+**/.env.*
+**/.claude
+**/*.pem
+**/*.key
+**/*.crt
+**/*:Zone.Identifier
+
+# Local-only historical material
+B2C-Medusa-交接文档.md
+Resend-域名验证经验.md
+
+# Generated output and local data
+**/node_modules
+**/.next
+**/.medusa
+**/coverage
+**/dist
+**/build
+**/*.tsbuildinfo
+**/*.log
+**/postgres-data
+**/redis-data
+**/backups
+**/data
+**/tmp
+**/.tmp
+**/.tmp-*
+**/*.tmp
+apps/backend/public

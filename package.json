@@ -1,0 +1,23 @@
+{
+  "name": "b2c-medusa",
+  "private": true,
+  "workspaces": [
+    "apps/backend",
+    "apps/storefront"
+  ],
+  "scripts": {
+    "dev": "docker compose -f infra/local/compose.yaml up --build",
+    "dev:backend": "npm run dev --workspace=@b2c/backend",
+    "dev:storefront": "npm run dev --workspace=@b2c/storefront",
+    "compose:config": "docker compose -f infra/local/compose.yaml config --quiet",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspace=@b2c/backend"
+  },
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "packageManager": "npm@11.19.0"
+}

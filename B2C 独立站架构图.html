@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>B2C 独立站架构图</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <style>
+      button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) { min-height: 2rem; }
+
+      :root {
+        --bg: #f4f6f5;
+        --surface: #ffffff;
+        --surface-2: #eef2f0;
+        --ink: #16211d;
+        --ink-2: #43554d;
+        --ink-3: #6b7d74;
+        --line: #d3ddd8;
+        --line-strong: #a9bcb2;
+        --teal: #0e6e5c;
+        --teal-soft: #e2f0eb;
+        --amber: #9a6206;
+        --amber-soft: #faf0da;
+        --red: #a33327;
+        --red-soft: #f9e8e4;
+        --blue: #1d5fa8;
+        --blue-soft: #e4eef8;
+        --node-fill: #ffffff;
+        --node-stroke: #9db4a9;
+        --dash-stroke: #8fa89c;
+        --arrow: #5d7a6d;
+        --shadow: 0 1px 2px rgba(18, 38, 30, .06), 0 8px 24px rgba(18, 38, 30, .06);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e1412;
+          --surface: #161f1b;
+          --surface-2: #1c2823;
+          --ink: #e8f0ec;
+          --ink-2: #b3c4bb;
+          --ink-3: #84998e;
+          --line: #2b3b34;
+          --line-strong: #41564c;
+          --teal: #4cc2a6;
+          --teal-soft: #173129;
+          --amber: #e0aa4e;
+          --amber-soft: #33270f;
+          --red: #e08a7d;
+          --red-soft: #38201b;
+          --blue: #7db1e8;
+          --blue-soft: #1a2c42;
+          --node-fill: #1a2621;
+          --node-stroke: #4b6659;
+          --dash-stroke: #54705f;
+          --arrow: #7d9c8c;
+          --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        line-height: 1.65;
+      }
+      .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 56px; }
+
+      header.top { margin-bottom: 20px; }
+      h1 { font-size: clamp(26px, 4.5vw, 36px); font-weight: 900; letter-spacing: .01em; margin: 0 0 8px; }
+      .lede { color: var(--ink-2); font-size: 15.5px; max-width: 46em; margin: 0; }
+      .lede .mono { font-size: .92em; }
+
+      /* principle strip */
+      .principles {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 22px 0 26px;
+      }
+      @media (max-width: 720px) {
+        .principles { grid-template-columns: 1fr; }
+      }
+      .principle {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+        padding: 14px 16px; box-shadow: var(--shadow);
+      }
+      .principle b { display: block; font-size: 15px; margin-bottom: 4px; }
+      .principle b .mono { color: var(--teal); font-size: 13.5px; }
+      .principle p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+
+      /* tabs */
+      .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+      .tab {
+        appearance: none; border: 1px solid var(--line-strong); background: var(--surface);
+        color: var(--ink-2); font: inherit; font-size: 14.5px; font-weight: 700;
+        padding: 8px 18px; border-radius: 999px; cursor: pointer; min-height: 40px;
+      }
+      .tab[aria-selected="true"] { background: var(--teal); border-color: var(--teal); color: #fff; }
+      @media (prefers-color-scheme: dark) {
+        .tab[aria-selected="true"] { color: #0c1512; }
+      }
+      .tab:focus-visible, .node:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+      .panel-card {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: var(--shadow); padding: 18px 18px 10px;
+      }
+      .panel-card h2 { font-size: 17px; margin: 2px 0 2px; }
+      .panel-card .sub { color: var(--ink-3); font-size: 13.5px; margin: 0 0 8px; }
+      .view { display: none; }
+      .view.active { display: block; }
+      svg.diagram { width: 100%; height: auto; display: block; }
+      .node { cursor: pointer; }
+      .node rect.box { fill: var(--node-fill); stroke: var(--node-stroke); stroke-width: 1.4; transition: stroke .15s; }
+      .node:hover rect.box, .node.selected rect.box { stroke: var(--teal); stroke-width: 2.2; }
+      .node text { pointer-events: none; }
+      .svg-title { font-size: 15px; font-weight: 700; fill: var(--ink); }
+      .svg-small { font-size: 11.5px; fill: var(--ink-3); }
+      .svg-mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; fill: var(--ink-2); }
+      .svg-zone { font-size: 12.5px; font-weight: 700; fill: var(--ink-3); letter-spacing: .06em; }
+      .svg-edge { font-size: 11px; fill: var(--ink-3); }
+      .edge { stroke: var(--arrow); stroke-width: 1.6; fill: none; }
+      .edge-dash { stroke-dasharray: 5 4; }
+
+      /* detail readout */
+      .detail {
+        margin-top: 14px; border: 1px solid var(--line); border-left: 4px solid var(--teal);
+        background: var(--surface-2); border-radius: 8px; padding: 14px 18px; min-height: 92px;
+      }
+      .detail h3 { margin: 0 0 4px; font-size: 16px; }
+      .detail h3 .mono { font-size: 13px; color: var(--teal); font-weight: 600; }
+      .detail p { margin: 0; font-size: 14.5px; color: var(--ink-2); }
+      .detail .tag {
+        display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 999px;
+        margin-left: 8px; vertical-align: 2px;
+      }
+      .tag-ok { background: var(--teal-soft); color: var(--teal); }
+      .tag-plan { background: var(--amber-soft); color: var(--amber); }
+      .tag-miss { background: var(--red-soft); color: var(--red); }
+
+      /* update steps */
+      .steps { list-style: none; margin: 6px 0 14px; padding: 0; counter-reset: step; }
+      .steps li {
+        display: flex; gap: 14px; padding: 13px 4px; border-bottom: 1px dashed var(--line);
+      }
+      .steps li:last-child { border-bottom: none; }
+      .steps .n {
+        flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%;
+        background: var(--teal); color: #fff; font-weight: 700; font-size: 14px;
+        display: flex; align-items: center; justify-content: center; margin-top: 2px;
+      }
+      @media (prefers-color-scheme: dark) { .steps .n { color: #0c1512; } }
+      .steps b { font-size: 15px; }
+      .steps p { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
+      .steps code, .inline-code {
+        font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .88em;
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px;
+      }
+      .warn {
+        background: var(--amber-soft); border: 1px solid var(--amber); border-radius: 10px;
+        padding: 13px 16px; font-size: 14px; color: var(--ink); margin: 4px 0 14px;
+      }
+      .warn b { color: var(--amber); }
+
+      /* faq view */
+      .qa-list { margin: 6px 0 10px; }
+      .qa-item { padding: 15px 4px; border-bottom: 1px dashed var(--line); }
+      .qa-item:last-child { border-bottom: none; }
+      .qa-item h3 { margin: 0 0 6px; font-size: 15.5px; }
+      .qa-item h3 .qmark {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; border-radius: 50%; background: var(--teal); color: #fff;
+        font-size: 13px; font-weight: 700; margin-right: 9px; vertical-align: 2px;
+      }
+      @media (prefers-color-scheme: dark) { .qa-item h3 .qmark { color: #0c1512; } }
+      .qa-item p { margin: 0 0 6px; font-size: 14px; color: var(--ink-2); }
+      .qa-item p:last-child { margin-bottom: 0; }
+      .qa-item .key { color: var(--ink); font-weight: 700; }
+      .qa-item code {
+        font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .88em;
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px;
+      }
+
+      /* data & backup view */
+      .data-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 6px; }
+      .data-card { border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; background: var(--surface-2); }
+      .data-card h3 { margin: 0 0 6px; font-size: 15px; }
+      .data-card h3 .mono { font-size: 12.5px; color: var(--teal); }
+      .data-card p, .data-card ul { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+      .data-card ul { padding-left: 18px; }
+      .data-card li { margin: 3px 0; }
+      .data-subhead { font-size: 16px; margin: 20px 0 2px; }
+      .data-subhead + .sub { margin-bottom: 6px; }
+      .no-backup { border-style: dashed; }
+      @media (max-width: 720px) { .data-compare { grid-template-columns: 1fr; } }
+
+      /* status section */
+      section.status { margin-top: 30px; }
+      section.status h2 { font-size: 20px; margin: 0 0 4px; }
+      section.status .sub { color: var(--ink-3); font-size: 13.5px; margin: 0 0 14px; }
+      .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .status-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+      .status-card h3 { margin: 0 0 8px; font-size: 15px; }
+      .status-card ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); }
+      .status-card li { margin: 3px 0; }
+      .status-card li .mono { font-size: 12.5px; }
+
+      footer { margin-top: 34px; color: var(--ink-3); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
+
+      @media (max-width: 720px) {
+        .principles { grid-template-columns: 1fr; }
+        .status-grid { grid-template-columns: 1fr; }
+        .wrap { padding: 20px 14px 44px; }
+        .panel-card { padding: 14px 10px 6px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <h1>B2C 独立站架构图</h1>
+        <p class="lede">
+          一套 B2C 独立站方案：Medusa v2 后端打成 Docker 镜像部署到海外高资源 VPS（VPS 上只跑应用容器），
+          店面（Next.js，UI 用 shadcn/ui + Tailwind CSS）放 Vercel（当前不涉及商业使用，用免费 Hobby 计划即可），数据库用 Supabase 的托管 PostgreSQL、缓存与队列用 Upstash 的托管 Redis（都走免费额度），支付走 Stripe、邮件通知走 Resend，上传文件存 Cloudflare R2。下面五个视图分别是运行架构、构建部署链、版本更新流程、数据与备份和答疑——文件存储、备份恢复演练、日志轮转、站外监控、自动部署、staging 彩排这些运维做法都已经是这套架构的一部分；图里的方框可以点，点开看每个组件的说明。
+        </p>
+      </header>
+
+      <div class="principles" aria-label="核心原则">
+        <div class="principle">
+          <b>镜像 = 代码 <span class="mono">image</span></b>
+          <p>Medusa 程序本身打进镜像，版本由镜像标签决定，换版本就是换镜像。</p>
+        </div>
+        <div class="principle">
+          <b>数据库与缓存用托管，不自托管 <span class="mono">Supabase · Upstash</span></b>
+          <p>数据库不打进 Medusa 镜像，也不在 VPS 上自己跑容器：PostgreSQL 放 Supabase、Redis 放 Upstash，都是托管服务、免费额度起步。VPS 上只跑 Medusa、Caddy、Worker 这些应用容器，不再维护数据库容器和数据卷，连接地址靠环境变量传入。</p>
+        </div>
+        <div class="principle">
+          <b>更新 = staging 彩排 + 自动部署 <span class="mono">db:migrate</span></b>
+          <p>新版本先在 staging 环境跑一遍迁移、验证下单与后台，没问题再上生产；生产部署由 <span class="mono">deploy.sh</span> / GitHub Actions 自动串起备份 → 拉新镜像 → 一次性迁移 → 建默认管理员 → 启动服务。迁移脚本是框架代码的一部分，跟着代码一起打进镜像。</p>
+        </div>
+        <div class="principle">
+          <b>备份 = 定时导出 + 异地 + 演练 <span class="mono">pg_dump</span></b>
+          <p>Supabase 免费版不带自动备份，所以更要自己来：定时对 Supabase 里的 PostgreSQL 远程跑 <span class="mono">pg_dump</span> 导出、打包，存进 Cloudflare R2 的备份 bucket：每天一份留 30 天、每月一份留 3 个月；每季度做一次恢复演练，没验证过的备份等于没备份。Upstash 的 Redis 丢了能重建，不用备份。</p>
+        </div>
+        <div class="principle">
+          <b>迁移靠流程，不靠人记 <span class="mono">db:migrate</span></b>
+          <p>生产环境用受控的一次性迁移步骤：迁移跑完再启动服务，避免多容器抢迁移。本地 / 单容器才用 entrypoint 启动时自动检查，先跑 <span class="mono">db:migrate</span> 再起服务。迁移幂等，只跑没跑过的。</p>
+        </div>
+        <div class="principle">
+          <b>地址靠环境变量传 <span class="mono">DATABASE_URL</span></b>
+          <p>数据库在哪不写死在镜像里：Medusa 启动时读 <span class="mono">DATABASE_URL</span>，里面是 Supabase 给的连接地址；<span class="mono">REDIS_URL</span> 同理指向 Upstash。同一个镜像换个变量就能连不同的库——生产和 staging 各用一个 Supabase 项目、一个 Upstash 数据库。</p>
+        </div>
+        <div class="principle">
+          <b>生产必需环境变量配齐 <span class="mono">.env</span></b>
+          <p>上线前必须配齐：<span class="mono">DATABASE_URL</span>、<span class="mono">REDIS_URL</span>、<span class="mono">JWT_SECRET</span>、<span class="mono">COOKIE_SECRET</span>、<span class="mono">STORE_CORS</span> / <span class="mono">ADMIN_CORS</span> / <span class="mono">AUTH_CORS</span>、<span class="mono">MEDUSA_BACKEND_URL</span>、<span class="mono">STRIPE_API_KEY</span>、<span class="mono">STRIPE_WEBHOOK_SECRET</span>、<span class="mono">RESEND_API_KEY</span>。密钥只放服务器环境变量，不进镜像、不进仓库。</p>
+        </div>
+        <div class="principle">
+          <b>Admin 要知道后端在哪 <span class="mono">admin.backendUrl</span></b>
+          <p>Admin 是静态页面，本身不知道后端地址：靠 <span class="mono">admin.backendUrl</span>（环境变量 <span class="mono">MEDUSA_BACKEND_URL</span>）指向后端公网地址，后台才调得到 API。同时把这个后端地址本身也加进 <span class="mono">ADMIN_CORS</span> / <span class="mono">AUTH_CORS</span>（连同后台访问域名一起），不然登录与跨域请求会被拦、后台打不开。</p>
+        </div>
+        <div class="principle">
+          <b>支付与通知接外部服务商 <span class="mono">Stripe · Resend</span></b>
+          <p>空白版 Medusa 默认不能收款、不会发邮件：支付接 Stripe Module Provider 并在 Region 里启用，邮件通知接 Resend（免费额度），异步发送由 Worker 容器跑。</p>
+        </div>
+        <div class="principle">
+          <b>搜索：暂不接 <span class="mono">search</span></b>
+          <p>搜索：暂不接，店面先不上搜索框。空白版 Medusa 默认不带搜索引擎，不要默认它有；以后要接再选 Meilisearch 或 Medusa Search，到时再补索引服务与店面搜索框。</p>
+        </div>
+        <div class="principle">
+          <b>上传文件存 R2，不落容器 <span class="mono">@medusajs/medusa/file-s3</span></b>
+          <p>商品图片等上传文件经 <span class="mono">@medusajs/medusa/file-s3</span> 插件直接存进 Cloudflare R2 的文件 bucket，不存 Medusa 容器本地——容器随便重建、换机器，图片都不丢。生产环境的 <span class="mono">file_url</span> 要用绑在 R2 上的自定义域名，不要用 r2.dev 公开链接。</p>
+        </div>
+        <div class="principle">
+          <b>监控在站外，日志有上限 <span class="mono">uptime · logging</span></b>
+          <p>站外监控（Uptime Kuma 放在另一台 VPS）每分钟检查首页与 <span class="mono">/health</span>，挂了立刻 Telegram / 邮件告警；Compose 给每个服务设日志轮转（<span class="mono">max-size 10m × max-file 3</span>）和内存上限，日志打满磁盘、单容器拖垮整机的事从源头堵住。</p>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="架构图视图">
+        <button class="tab" role="tab" id="tab-run" aria-selected="true" aria-controls="view-run" data-view="run">运行架构</button>
+        <button class="tab" role="tab" id="tab-ci" aria-selected="false" aria-controls="view-ci" data-view="ci">构建与部署</button>
+        <button class="tab" role="tab" id="tab-update" aria-selected="false" aria-controls="view-update" data-view="update">版本更新流程</button>
+        <button class="tab" role="tab" id="tab-data" aria-selected="false" aria-controls="view-data" data-view="data">数据与备份</button>
+        <button class="tab" role="tab" id="tab-faq" aria-selected="false" aria-controls="view-faq" data-view="faq">答疑</button>
+      </div>
+
+      <!-- ============ VIEW: RUNTIME ============ -->
+      <section class="view active" id="view-run" role="tabpanel" aria-labelledby="tab-run">
+        <div class="panel-card">
+          <h2>运行架构：顾客的一次访问怎么走</h2>
+          <p class="sub">实线是顾客的请求路径，虚线是后台访问与外部服务调用。数据库在 Supabase、缓存与队列在 Upstash，都是托管服务、不在 VPS 上；上传文件走 Cloudflare R2、支付走 Stripe、通知走 Resend、异步任务由独立的 Worker 容器跑、站外监控独立在另一台 VPS 上盯着，都是这张图的一部分。点击任意方框看说明。</p>
+          <svg class="diagram" viewBox="0 0 960 716" role="img" aria-label="运行架构图：浏览器访问 Vercel 上的 Next.js 店面，店面通过 Caddy 调用 VPS 上 Docker Compose 中的 Medusa 后端与 Worker 容器，Medusa 连接 Supabase 的托管 PostgreSQL 与 Upstash 的托管 Redis，支付走 Stripe、通知走 Resend">
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--arrow)"></path>
+              </marker>
+            </defs>
+
+            <!-- VPS zone -->
+            <rect x="470" y="36" width="252" height="644" rx="14" fill="none" stroke="var(--dash-stroke)" stroke-width="1.6" stroke-dasharray="7 5"></rect>
+            <text class="svg-zone" x="486" y="62">生产 VPS · DOCKER COMPOSE</text>
+
+            <!-- Managed services zone -->
+            <rect x="736" y="36" width="200" height="644" rx="14" fill="none" stroke="var(--dash-stroke)" stroke-width="1.6" stroke-dasharray="7 5"></rect>
+            <text class="svg-zone" x="752" y="62">托管服务 · 免费额度</text>
+
+            <!-- Browser -->
+            <g class="node" data-key="browser" tabindex="0" role="button" aria-label="顾客浏览器">
+              <rect class="box" x="24" y="120" width="168" height="86" rx="10"></rect>
+              <text class="svg-title" x="108" y="156" text-anchor="middle">顾客浏览器</text>
+              <text class="svg-small" x="108" y="178" text-anchor="middle">手机 / 电脑访问商店</text>
+            </g>
+
+            <!-- Vercel storefront -->
+            <g class="node" data-key="storefront" tabindex="0" role="button" aria-label="Next.js 店面，UI 用 shadcn/ui 加 Tailwind CSS，部署在 Vercel">
+              <rect class="box" x="252" y="110" width="180" height="106" rx="10"></rect>
+              <text class="svg-title" x="342" y="140" text-anchor="middle">Next.js 店面</text>
+              <text class="svg-mono" x="342" y="162" text-anchor="middle">shadcn/ui + Tailwind CSS</text>
+              <text class="svg-small" x="342" y="182" text-anchor="middle">storefront · 组件源码自维护</text>
+              <text class="svg-small" x="342" y="200" text-anchor="middle">Vercel · 免费 Hobby</text>
+            </g>
+
+            <!-- Caddy -->
+            <g class="node" data-key="caddy" tabindex="0" role="button" aria-label="Caddy 反向代理">
+              <rect class="box" x="540" y="110" width="180" height="106" rx="10"></rect>
+              <text class="svg-title" x="630" y="146" text-anchor="middle">Caddy</text>
+              <text class="svg-mono" x="630" y="168" text-anchor="middle">reverse proxy</text>
+              <text class="svg-small" x="630" y="190" text-anchor="middle">VPS 入口 · 自动 HTTPS · /app 加防护</text>
+            </g>
+
+            <!-- Medusa -->
+            <g class="node" data-key="medusa" tabindex="0" role="button" aria-label="Medusa 后端容器">
+              <rect class="box" x="540" y="286" width="180" height="118" rx="10"></rect>
+              <text class="svg-title" x="630" y="322" text-anchor="middle">Medusa 后端</text>
+              <text class="svg-mono" x="630" y="344" text-anchor="middle">Node.js 20+ · 容器</text>
+              <text class="svg-small" x="630" y="366" text-anchor="middle">Store API / Admin API</text>
+              <text class="svg-small" x="630" y="384" text-anchor="middle">干净版 · 无业务定制</text>
+            </g>
+
+            <!-- Admin user -->
+            <g class="node" data-key="admin" tabindex="0" role="button" aria-label="你自己，商家后台">
+              <rect class="box" x="24" y="300" width="168" height="86" rx="10"></rect>
+              <text class="svg-title" x="108" y="336" text-anchor="middle">你（商家）</text>
+              <text class="svg-small" x="108" y="358" text-anchor="middle">浏览器打开 Admin 后台</text>
+            </g>
+
+            <!-- Supabase PostgreSQL -->
+            <g class="node" data-key="postgres" tabindex="0" role="button" aria-label="Supabase 托管 PostgreSQL 数据库">
+              <rect class="box" x="744" y="286" width="168" height="118" rx="10"></rect>
+              <text class="svg-title" x="828" y="318" text-anchor="middle">Supabase</text>
+              <text class="svg-mono" x="828" y="338" text-anchor="middle">PostgreSQL · 托管</text>
+              <text class="svg-small" x="828" y="360" text-anchor="middle">真数据库 · 免费版</text>
+              <text class="svg-small" x="828" y="378" text-anchor="middle">商品 · 订单 · 用户</text>
+              <text class="svg-small" x="828" y="396" text-anchor="middle">不在 VPS 上自托管</text>
+            </g>
+
+            <!-- Upstash Redis -->
+            <g class="node" data-key="redis" tabindex="0" role="button" aria-label="Upstash 托管 Redis 缓存，不是业务数据库">
+              <rect class="box" x="744" y="452" width="168" height="88" rx="10"></rect>
+              <text class="svg-title" x="828" y="478" text-anchor="middle">Upstash</text>
+              <text class="svg-mono" x="828" y="497" text-anchor="middle">Redis · 托管</text>
+              <text class="svg-small" x="828" y="515" text-anchor="middle">Caching · Event Bus</text>
+              <text class="svg-small" x="828" y="531" text-anchor="middle">Workflow Engine · Locking</text>
+            </g>
+
+            <!-- Offsite monitoring -->
+            <g class="node" data-key="monitor" tabindex="0" role="button" aria-label="站外监控 Uptime Kuma，部署在另一台 VPS 上">
+              <rect class="box" x="24" y="30" width="168" height="68" rx="10"></rect>
+              <text class="svg-title" x="108" y="58" text-anchor="middle">站外监控</text>
+              <text class="svg-small" x="108" y="80" text-anchor="middle">Uptime Kuma · 另一台 VPS</text>
+            </g>
+
+            <!-- Cloudflare R2 file storage -->
+            <g class="node" data-key="r2" tabindex="0" role="button" aria-label="Cloudflare R2 对象存储，存上传文件">
+              <rect class="box" x="252" y="452" width="180" height="88" rx="10"></rect>
+              <text class="svg-title" x="342" y="484" text-anchor="middle">Cloudflare R2</text>
+              <text class="svg-mono" x="342" y="506" text-anchor="middle">@medusajs/medusa/file-s3</text>
+              <text class="svg-small" x="342" y="524" text-anchor="middle">商品图片等上传文件</text>
+            </g>
+
+            <!-- Stripe payment -->
+            <g class="node" data-key="stripe" tabindex="0" role="button" aria-label="Stripe 支付服务商">
+              <rect class="box" x="24" y="452" width="168" height="88" rx="10"></rect>
+              <text class="svg-title" x="108" y="484" text-anchor="middle">Stripe 支付</text>
+              <text class="svg-mono" x="108" y="506" text-anchor="middle">Module Provider</text>
+              <text class="svg-small" x="108" y="524" text-anchor="middle">收款 · webhook 回调</text>
+            </g>
+
+            <!-- Resend notification -->
+            <g class="node" data-key="resend" tabindex="0" role="button" aria-label="Resend 邮件通知服务商">
+              <rect class="box" x="24" y="560" width="168" height="88" rx="10"></rect>
+              <text class="svg-title" x="108" y="592" text-anchor="middle">Resend 通知</text>
+              <text class="svg-mono" x="108" y="614" text-anchor="middle">Notification Provider</text>
+              <text class="svg-small" x="108" y="632" text-anchor="middle">订单邮件 · 通知发送</text>
+            </g>
+
+            <!-- Worker container -->
+            <g class="node" data-key="worker" tabindex="0" role="button" aria-label="Medusa Worker 容器，跑异步任务">
+              <rect class="box" x="540" y="560" width="180" height="88" rx="10"></rect>
+              <text class="svg-title" x="630" y="592" text-anchor="middle">Medusa Worker</text>
+              <text class="svg-mono" x="630" y="614" text-anchor="middle">worker mode · 独立容器</text>
+              <text class="svg-small" x="630" y="632" text-anchor="middle">异步任务 · 事件订阅 · 通知</text>
+            </g>
+
+            <!-- Edges -->
+            <path class="edge" d="M192,158 L244,158" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="218" y="146" text-anchor="middle">① 打开商店</text>
+
+            <path class="edge" d="M432,150 C 480,150 492,150 532,150" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="482" y="138" text-anchor="middle">② API 请求</text>
+
+            <path class="edge" d="M630,216 L630,278" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="642" y="252">转发</text>
+
+            <path class="edge" d="M192,336 C 340,336 420,420 560,452" marker-end="url(#arr)" opacity="0"></path>
+            <path class="edge edge-dash" d="M192,352 C 330,352 400,300 470,300 L470,336 L532,336" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="330" y="330" text-anchor="middle">经 Caddy 打开后台 /app</text>
+
+            <path class="edge edge-dash" d="M690,286 C 690,246 806,246 820,278" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="752" y="238" text-anchor="middle">按 DATABASE_URL 连接</text>
+            <path class="edge edge-dash" d="M720,384 C 752,404 776,424 796,444" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="770" y="434" text-anchor="middle">REDIS_URL</text>
+
+            <path class="edge edge-dash" d="M192,64 L452,64 C 545,64 605,78 626,102" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="322" y="52" text-anchor="middle">每分钟查 /health · 挂了 Telegram / 邮件告警</text>
+
+            <path class="edge edge-dash" d="M585,404 C 540,455 490,478 440,490" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="498" y="450" text-anchor="middle">文件读写 · S3 接口</text>
+
+            <path class="edge edge-dash" d="M540,380 C 400,420 262,442 200,468" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="362" y="410" text-anchor="middle">支付下单 / webhook 回调</text>
+
+            <path class="edge edge-dash" d="M540,604 L200,604" marker-end="url(#arr)"></path>
+            <text class="svg-edge" x="370" y="592" text-anchor="middle">Worker 发通知</text>
+          </svg>
+        </div>
+        <div class="detail" id="detail-run" aria-live="polite"></div>
+      </section>
+
+      <!-- ============ VIEW: CI/CD ============ -->
+      <section class="view" id="view-ci" role="tabpanel" aria-labelledby="tab-ci">
+        <div class="panel-card">
+          <h2>构建与部署：代码怎么变成 VPS 上跑着的服务</h2>
+          <p class="sub">官方没有现成的 Medusa 镜像，所以镜像由你自己的 CI 打；部署也不靠人手动 SSH——push 后由 GitHub Actions 先把新版本部署到 staging，跑迁移、验证下单与后台，通过后才 SSH 到生产 VPS 执行 <span class="mono">deploy.sh</span>；staging 没通过，生产一步都不动。点击任意方框看说明。</p>
+          <svg class="diagram" viewBox="0 0 960 470" role="img" aria-label="构建部署图：本地开发推送到 GitHub 仓库，GitHub Actions 构建多架构镜像推送到 GHCR，先部署 staging 验证，通过后 VPS 才拉取镜像用 Docker Compose 启动">
+            <defs>
+              <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--arrow)"></path>
+              </marker>
+            </defs>
+
+            <g class="node" data-key="dev" tabindex="0" role="button" aria-label="本地开发">
+              <rect class="box" x="24" y="70" width="180" height="104" rx="10"></rect>
+              <text class="svg-title" x="114" y="106" text-anchor="middle">本地开发</text>
+              <text class="svg-mono" x="114" y="128" text-anchor="middle">npm install / dev</text>
+              <text class="svg-small" x="114" y="150" text-anchor="middle">改代码、升依赖都在这里</text>
+            </g>
+
+            <g class="node" data-key="repo" tabindex="0" role="button" aria-label="GitHub 仓库">
+              <rect class="box" x="276" y="70" width="180" height="104" rx="10"></rect>
+              <text class="svg-title" x="366" y="106" text-anchor="middle">GitHub 仓库</text>
+              <text class="svg-mono" x="366" y="128" text-anchor="middle">monorepo</text>
+              <text class="svg-small" x="366" y="150" text-anchor="middle">后端 + 店面 · 同一仓库</text>
+            </g>
+
+            <g class="node" data-key="actions" tabindex="0" role="button" aria-label="GitHub Actions 持续集成">
+              <rect class="box" x="528" y="70" width="180" height="104" rx="10"></rect>
+              <text class="svg-title" x="618" y="106" text-anchor="middle">GitHub Actions</text>
+              <text class="svg-mono" x="618" y="128" text-anchor="middle">docker build</text>
+              <text class="svg-small" x="618" y="150" text-anchor="middle">构建镜像 + 先部署 staging</text>
+            </g>
+
+            <g class="node" data-key="ghcr" tabindex="0" role="button" aria-label="GHCR 镜像仓库">
+              <rect class="box" x="756" y="70" width="180" height="104" rx="10"></rect>
+              <text class="svg-title" x="846" y="106" text-anchor="middle">GHCR 镜像仓库</text>
+              <text class="svg-mono" x="846" y="128" text-anchor="middle">backend:&lt;sha&gt;</text>
+              <text class="svg-small" x="846" y="150" text-anchor="middle">amd64 / arm64 双架构</text>
+            </g>
+
+            <g class="node" data-key="staging" tabindex="0" role="button" aria-label="Staging 环境，生产部署前的门禁">
+              <rect class="box" x="276" y="286" width="220" height="118" rx="10"></rect>
+              <text class="svg-title" x="386" y="322" text-anchor="middle">Staging 环境（门禁）</text>
+              <text class="svg-mono" x="386" y="344" text-anchor="middle">同套 Compose · 独立 Supabase 项目</text>
+              <text class="svg-small" x="386" y="366" text-anchor="middle">先部署 · 跑迁移 · 验证下单与后台</text>
+              <text class="svg-small" x="386" y="384" text-anchor="middle">通过才放行生产，没通过就停在这里</text>
+            </g>
+
+            <g class="node" data-key="vpspull" tabindex="0" role="button" aria-label="VPS 拉取并启动">
+              <rect class="box" x="560" y="286" width="220" height="118" rx="10"></rect>
+              <text class="svg-title" x="670" y="322" text-anchor="middle">VPS 上线</text>
+              <text class="svg-mono" x="670" y="344" text-anchor="middle">deploy.sh · staging 通过后</text>
+              <text class="svg-small" x="670" y="366" text-anchor="middle">备份 → 拉镜像 → 迁移 → 建默认管理员</text>
+              <text class="svg-small" x="670" y="384" text-anchor="middle">→ 启动服务 · 日志轮转 10m×3 · 内存上限</text>
+            </g>
+
+            <g class="node" data-key="dockerfile" tabindex="0" role="button" aria-label="Dockerfile">
+              <rect class="box" x="24" y="286" width="220" height="118" rx="10"></rect>
+              <text class="svg-title" x="134" y="322" text-anchor="middle">Dockerfile</text>
+              <text class="svg-mono" x="134" y="344" text-anchor="middle">FROM node:22-alpine</text>
+              <text class="svg-small" x="134" y="366" text-anchor="middle">自己写、自己维护</text>
+              <text class="svg-small" x="134" y="384" text-anchor="middle">官方不提供成品镜像</text>
+            </g>
+
+            <path class="edge" d="M204,122 L268,122" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="236" y="110" text-anchor="middle">git push</text>
+
+            <path class="edge" d="M456,122 L520,122" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="488" y="110" text-anchor="middle">触发构建</text>
+
+            <path class="edge" d="M708,122 L748,122" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="728" y="110" text-anchor="middle">推送镜像</text>
+
+            <path class="edge" d="M846,174 C 846,252 560,262 430,278" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="706" y="240" text-anchor="middle">先部署到 staging</text>
+
+            <path class="edge" d="M496,345 L552,345" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="524" y="333" text-anchor="middle">通过 →</text>
+
+            <path class="edge edge-dash" d="M134,404 L134,438 L670,438 L670,412" marker-end="url(#arr2)"></path>
+            <text class="svg-edge" x="402" y="428" text-anchor="middle">构建时按它打包</text>
+          </svg>
+        </div>
+        <div class="detail" id="detail-ci" aria-live="polite"></div>
+      </section>
+
+      <!-- ============ VIEW: UPDATE ============ -->
+      <section class="view" id="view-update" role="tabpanel" aria-labelledby="tab-update">
+        <div class="panel-card">
+          <h2>版本更新流程：Medusa 发新版时你要做的事</h2>
+          <p class="sub">这正是你想要的工作方式——日常更新不动服务器环境，只换镜像；而且先在 staging 彩排、再由脚本自动部署到生产，不靠人手动 SSH 一步步敲。</p>
+          <ol class="steps">
+            <li>
+              <span class="n">1</span>
+              <div>
+                <b>看 release notes</b>
+                <p>先确认这次更新有没有 breaking change。patch 只修 bug；minor 可能有 breaking change；major 是架构大改，要按官方升级指南走，必要时跑官方 codemods 自动改代码。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">2</span>
+              <div>
+                <b>升 npm 依赖</b>
+                <p>把 <code>package.json</code> 里所有 <code>@medusajs/*</code> 包一起升到同一个新版本号（官方每次发版统一版本号，保证互相兼容），然后 <code>npm install</code>。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">3</span>
+              <div>
+                <b>提交并推送：先自动部署到 staging</b>
+                <p><code>git push</code> 到 main，GitHub Actions 自动打新镜像、推到 GHCR（镜像标签是这次的 commit 号），然后先把新版本部署到 staging——这一步生产环境完全不动，还跑着旧版本。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">4</span>
+              <div>
+                <b>在 staging 彩排验证（生产门禁）</b>
+                <p>Staging 是和生产长得一模一样的彩排环境：在高资源 VPS 上再起一套同样的 Compose，换个子域名和端口；数据库不用在 VPS 上另起容器——新建一个独立的 Supabase 项目，把生产备份导入一份，Redis 用一个独立的 Upstash 数据库。新版本已经部署到 staging，在这里跑一遍迁移、点一遍下单和后台——验证通过，流水线才放行生产部署；没通过就停在这里修，生产保持旧版本，把翻车挡在顾客看到之前。嫌全套太重时，最低限度也要在 staging 把迁移跑通、验证数据不丢。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">5</span>
+              <div>
+                <b>staging 通过后，才自动部署到生产：先备份，再拉新镜像</b>
+                <p>部署由 GitHub Actions 自动 SSH 到 VPS 执行 <code>deploy.sh</code> 一键完成，不再靠人手动敲——前提是上一步 staging 验证已经通过，没通过流程到此为止、生产保持旧版本。脚本第一步先对 Supabase 里的 PostgreSQL 远程跑一次 <code>pg_dump</code> 备份并存进 R2 备份 bucket——迁移出问题时能回得去，有些数据迁移是不可逆的；然后 <code>docker compose pull</code> 拉下新镜像，先别急着启动服务——下一步先跑迁移。数据库和缓存都在托管服务那边，不在这台 VPS 上，这一步不碰它们。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">6</span>
+              <div>
+                <b>跑数据库迁移 + 建默认管理员（生产：一次性步骤）</b>
+                <p><code>deploy.sh</code> 在启动服务之前，用一个受控的一次性步骤单独跑 <code>npx medusa db:migrate</code>（用新镜像起一个临时容器执行，跑完即退出），<b>迁移确认完成后再启动 Server 和 Worker</b>——这样避免多个服务同时启动时抢着迁移、互相冲突。它怎么知道跑哪些？先查数据库里的一张记录表（记着哪些迁移已执行），再对照镜像里带的迁移文件，只按顺序执行没跑过的——重复执行也不会重复建表。迁移跑完之后、启动服务之前，脚本紧接着用新镜像起一个临时容器跑 <code>npx medusa user -e <admin-email> -p <admin-password-from-secret></code>，自动创建默认管理员（邮箱 <code><admin-email></code>、密码 <code><admin-password-from-secret></code>，首次登录后立即改密码）。这一步是<b>幂等的</b>：先查数据库里是否已有管理员，有就直接跳过——绝不能因为用户已存在就报错、让整个部署失败；所以首次部署时它把号建好，后续每次版本更新跑到这里都会自动跳过。这一步由部署脚本串行执行、靠流程保证，不靠人记。本地 / 单容器场景才用 entrypoint 自动检查：把 <code>db:migrate</code> 写进启动脚本，容器一启动先跑迁移再起服务，图省事。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">7</span>
+              <div>
+                <b>大版本升级单独处理</b>
+                <p>跨大版本时迁移可能不只是加列改表，还会动数据格式、拆表。标准做法是先看官方升级指南：有时不能跳版本、要逐个版本升，有的版本要先跑 codemods 改代码。先在 staging 把整个升级跑通、验证完，备份确认好之后，生产仍走一次性迁移步骤、但要手动确认每一步——流程化替代不了这一步判断，本地的 entrypoint 自动检查更不能直接套到生产大版本升级上。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">8</span>
+              <div>
+                <b>首次部署清单（只在第一次上线时做）</b>
+                <p><code>db:migrate</code> 只建表，不会自动生成任何业务数据——首次部署还要按顺序把这三件事做完，店才真正能营业：<b>建 Store / Region（含启用 Stripe）→ 建 Sales Channel → 生成 Publishable API Key 配给店面</b>。Admin 用户不在这份手动清单里，它由部署脚本自动完成：<code>deploy.sh</code> 在一次性迁移跑完之后、启动服务之前，已经用新镜像起临时容器跑 <code>npx medusa user -e <admin-email> -p <admin-password-from-secret></code> 建好默认管理员（邮箱 <code><admin-email></code>、密码 <code><admin-password-from-secret></code>，首次登录后立即改密码），且幂等——数据库里已有管理员时自动跳过，不会因为用户已存在让部署失败。手动跑命令只是备用：Medusa 后台没有注册入口，只有登录页——数据库里 0 个用户时打开后台仍是登录页，万一自动创建没生效，才在后端容器里手动跑同一条 <code>npx medusa user -e &lt;email&gt; -p &lt;password&gt;</code> 补建。部署完成后用默认管理员登录后台，依次建 Store 和 Region（在 Region 里启用 Stripe 支付）、建 Sales Channel 并关联商品，最后生成 Publishable API Key 填到店面的环境变量里——店面没这个 Key 就调不到 Store API、商品页是空的。这份清单只在首次部署时走一遍，后续版本更新不用重复。</p>
+              </div>
+            </li>
+          </ol>
+          <div class="warn">
+            <b>最容易漏的一步是迁移，所以它被写进了 deploy.sh 和 staging 彩排流程。</b>只换镜像不迁库，新代码对不上旧表结构，服务会直接起不来；现在新版本先在 staging 把迁移跑通，生产部署时脚本在启动服务前自动执行一次性迁移步骤，靠流程保证、不靠人记；entrypoint 自动检查只留给本地 / 单容器。
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ VIEW: DATA & BACKUP ============ -->
+      <section class="view" id="view-data" role="tabpanel" aria-labelledby="tab-data">
+        <div class="panel-card">
+          <h2>数据与备份：数据库不打包，备份单独走一条线</h2>
+          <p class="sub">架构里数据分四处安放：业务数据在 Supabase 的托管 PostgreSQL，缓存与队列在 Upstash 的托管 Redis，上传文件在 Cloudflare R2 的文件 bucket，数据库备份在 R2 的备份 bucket。VPS 上不跑任何数据库容器。备份的对象只有 PostgreSQL，且要定期做恢复演练。点击任意方框看说明。</p>
+          <svg class="diagram" viewBox="0 0 960 500" role="img" aria-label="数据与备份图：Medusa 镜像只含代码，PostgreSQL 在 Supabase 托管、Redis 在 Upstash 托管；PostgreSQL 定时 pg_dump 导出备份文件，再传到 R2 异地存放，Redis 不备份">
+            <defs>
+              <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--arrow)"></path>
+              </marker>
+            </defs>
+
+            <rect x="24" y="30" width="300" height="300" rx="14" fill="none" stroke="var(--dash-stroke)" stroke-width="1.6" stroke-dasharray="7 5"></rect>
+            <text class="svg-zone" x="46" y="56">海外 VPS · 只跑应用容器</text>
+
+            <rect x="348" y="30" width="288" height="300" rx="14" fill="none" stroke="var(--dash-stroke)" stroke-width="1.6" stroke-dasharray="7 5"></rect>
+            <text class="svg-zone" x="370" y="56">托管服务 · 免费额度</text>
+
+            <rect x="676" y="30" width="260" height="300" rx="14" fill="none" stroke="var(--dash-stroke)" stroke-width="1.6" stroke-dasharray="7 5"></rect>
+            <text class="svg-zone" x="698" y="56">异地 · VPS 之外</text>
+
+            <!-- Medusa image -->
+            <g class="node" data-key="medusa-image" tabindex="0" role="button" aria-label="Medusa 镜像，只含代码不含数据">
+              <rect class="box" x="46" y="76" width="176" height="104" rx="10"></rect>
+              <text class="svg-title" x="134" y="110" text-anchor="middle">Medusa 镜像</text>
+              <text class="svg-mono" x="134" y="132" text-anchor="middle">image · 只含代码</text>
+              <text class="svg-small" x="134" y="154" text-anchor="middle">不含任何业务数据</text>
+            </g>
+
+            <!-- Supabase PostgreSQL -->
+            <g class="node" data-key="postgres" tabindex="0" role="button" aria-label="Supabase 托管 PostgreSQL">
+              <rect class="box" x="366" y="76" width="240" height="104" rx="10"></rect>
+              <text class="svg-title" x="486" y="110" text-anchor="middle">Supabase PostgreSQL</text>
+              <text class="svg-mono" x="486" y="132" text-anchor="middle">托管 · 免费版</text>
+              <text class="svg-small" x="486" y="154" text-anchor="middle">真正的数据库 · 不在 VPS 上</text>
+            </g>
+
+            <!-- Upstash Redis -->
+            <g class="node" data-key="redis" tabindex="0" role="button" aria-label="Upstash 托管 Redis">
+              <rect class="box" x="366" y="206" width="240" height="96" rx="10"></rect>
+              <text class="svg-title" x="486" y="238" text-anchor="middle">Upstash Redis</text>
+              <text class="svg-mono" x="486" y="260" text-anchor="middle">托管 · 免费版</text>
+              <text class="svg-small" x="486" y="280" text-anchor="middle">四个生产模块 · 不是业务数据库</text>
+            </g>
+
+            <!-- Dump file -->
+            <g class="node" data-key="backup" tabindex="0" role="button" aria-label="pg_dump 备份文件">
+              <rect class="box" x="46" y="366" width="220" height="104" rx="10"></rect>
+              <text class="svg-title" x="156" y="400" text-anchor="middle">备份文件</text>
+              <text class="svg-mono" x="156" y="422" text-anchor="middle">pg_dump → .sql / .sql.gz</text>
+              <text class="svg-small" x="156" y="444" text-anchor="middle">定时导出 · 带日期打包</text>
+            </g>
+
+            <!-- Offsite -->
+            <g class="node" data-key="offsite" tabindex="0" role="button" aria-label="异地存放">
+              <rect class="box" x="698" y="76" width="216" height="118" rx="10"></rect>
+              <text class="svg-title" x="806" y="110" text-anchor="middle">异地存放 · R2 备份 bucket</text>
+              <text class="svg-small" x="806" y="134" text-anchor="middle">Cloudflare R2 独立 bucket</text>
+              <text class="svg-small" x="806" y="154" text-anchor="middle">每天留 30 天 · 每月留 3 个月</text>
+              <text class="svg-small" x="806" y="174" text-anchor="middle">旧备份按策略自动清理</text>
+            </g>
+
+            <g class="node" data-key="offsite" tabindex="0" role="button" aria-label="换 VPS 时恢复">
+              <rect class="box" x="698" y="226" width="216" height="76" rx="10"></rect>
+              <text class="svg-title" x="806" y="258" text-anchor="middle">换 VPS 时恢复</text>
+              <text class="svg-small" x="806" y="280" text-anchor="middle">把备份导入新库即可</text>
+            </g>
+
+            <!-- Edges -->
+            <path class="edge" d="M222,118 L358,118" marker-end="url(#arr4)"></path>
+            <text class="svg-edge" x="290" y="106" text-anchor="middle">读写 · DATABASE_URL</text>
+            <path class="edge" d="M222,148 C 300,180 320,210 358,238" marker-end="url(#arr4)"></path>
+            <text class="svg-edge" x="252" y="200">缓存 · REDIS_URL</text>
+
+            <text class="svg-edge" x="134" y="204" text-anchor="middle">✕ 数据不进镜像 · 数据库不在本机</text>
+
+            <path class="edge" d="M486,180 C 486,300 300,330 216,358" marker-end="url(#arr4)"></path>
+            <text class="svg-edge" x="352" y="300">定时 pg_dump（远程导出）</text>
+
+            <path class="edge" d="M266,418 C 440,418 620,180 690,150" marker-end="url(#arr4)"></path>
+            <text class="svg-edge" x="470" y="404" text-anchor="middle">打包后存进 R2 备份 bucket →</text>
+            <text class="svg-edge" x="480" y="486" text-anchor="middle">Upstash 不走备份线：缓存丢了重建，不备份 · 换 VPS 不用搬数据库，改个连接串即可</text>
+          </svg>
+        </div>
+        <div class="detail" id="detail-data" aria-live="polite"></div>
+
+        <div class="panel-card" style="margin-top:14px;">
+          <h3 class="data-subhead" style="margin-top:2px;">先分清：数据库、缓存、文件，各放各的</h3>
+          <div class="data-compare">
+            <div class="data-card">
+              <h3>PostgreSQL <span class="mono">Supabase · 托管</span></h3>
+              <ul>
+                <li>存商品、订单、用户、库存——丢了就是丢生意</li>
+                <li>跑在 Supabase 的托管 PostgreSQL 上（免费版），不在 VPS 上起容器、不占本机磁盘</li>
+                <li>必须备份：Supabase 免费版不带自动备份，靠自己定时 <span class="mono">pg_dump</span> 导出到 R2</li>
+                <li>换 VPS 不用搬数据库：新机器改个 <span class="mono">DATABASE_URL</span> 指过去就行</li>
+              </ul>
+            </div>
+            <div class="data-card no-backup">
+              <h3>Redis <span class="mono">Upstash · 托管</span></h3>
+              <ul>
+                <li>只做缓存、事件和队列，严格说不是业务数据库</li>
+                <li>跑在 Upstash 的托管 Redis 上（免费版），不在 VPS 上起容器</li>
+                <li>数据丢了能重建，所以不备份、不需要异地存放</li>
+                <li>生产要配齐四个模块：Caching（缓存）、Event Bus（事件总线）、Workflow Engine（工作流引擎）、Locking（分布式锁），都通过 <span class="mono">REDIS_URL</span> 连同一个 Upstash 数据库</li>
+              </ul>
+            </div>
+            <div class="data-card">
+              <h3>上传文件 <span class="mono">Cloudflare R2 · 文件 bucket</span></h3>
+              <ul>
+                <li>商品图片等上传文件经 <span class="mono">@medusajs/medusa/file-s3</span> 插件（S3 兼容 endpoint + bucket + API Token）直接存 R2</li>
+                <li>生产环境的 <span class="mono">file_url</span> 要用自定义域名，不要用 r2.dev 公开链接</li>
+                <li>不落 Medusa 容器本地：容器重建、换机器都不丢图片</li>
+                <li>和备份 bucket 分开：一个管营业文件，一个管数据库备份；R2 每月 10GB 存储免费、出口流量免费</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3 class="data-subhead">备份怎么做：四步</h3>
+          <p class="sub">备份的对象只有 PostgreSQL。目标是：Supabase 账号或 VPS 任一边出事，也能把店恢复出来。</p>
+          <ol class="steps">
+            <li>
+              <span class="n">1</span>
+              <div>
+                <b>定时远程导出</b>
+                <p>用定时任务（比如每天一次）通过 Supabase 给的连接串连过去，对里面的 PostgreSQL 跑 <code>pg_dump</code>，导成一个 SQL 文件。这是逻辑备份，导出的文件干净、可移植。Supabase 免费版不提供自动备份（付费版才有），这条自备的线不能省。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">2</span>
+              <div>
+                <b>打包并带上日期</b>
+                <p>把导出的 SQL 压缩打包，文件名带日期（如 <code>backup-2026-11-20.sql.gz</code>）。保留策略固定下来：每天一份留 30 天、每月一份留 3 个月，超期的自动清理——既不只留最新一份，也不会无限堆积。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">3</span>
+              <div>
+                <b>存进 R2 备份 bucket</b>
+                <p>把备份包传出这台 VPS，存进 Cloudflare R2 的备份 bucket（和文件 bucket 分开）。只存在本机不算备份——VPS 挂了会跟着一起没；放 R2 既是异地，成本又低。</p>
+              </div>
+            </li>
+            <li>
+              <span class="n">4</span>
+              <div>
+                <b>定期做恢复演练</b>
+                <p>有备份不等于能恢复：上线前先做一次完整演练——新建一个临时 Supabase 项目（或临时 PostgreSQL），把最新备份导入，确认能起来、商品和订单都在；之后每季度抽查一次。真要恢复时照同一套走：把备份导入一个新的 Supabase 项目、改 <code>DATABASE_URL</code> 指向新库、跑 <code>db:migrate</code> 对齐表结构、打开店面确认。没演练过的备份等于没备份。</p>
+              </div>
+            </li>
+          </ol>
+          <div class="warn">
+            <b>别指望 Supabase 免费版自带备份。</b>自动备份是 Supabase 付费版的功能，免费版没有——所以 <span class="mono">pg_dump</span> 导出到 R2 这条线必须自己搭、不能省；哪天升级到付费版，也建议保留这条线，手里多一份自己掌控的异地副本。另外免费项目长期没有任何活动会被 Supabase 暂停，生产店有正常流量一般不会触发，staging 项目长时间不用时记得先唤醒再部署。
+          </div>
+          <div class="warn" style="background:var(--surface-2);border-color:var(--line-strong);">
+            <b style="color:var(--teal);">R2 里两个 bucket 别混：</b>文件 bucket 存正在营业用的商品图片，Medusa 运行时天天读写；备份 bucket 只存 <span class="mono">pg_dump</span> 的历史备份包，平时只进不出。分开之后，清理旧备份不会误删商品图，恢复演练也不会碰到线上文件。
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ VIEW: FAQ ============ -->
+      <section class="view" id="view-faq" role="tabpanel" aria-labelledby="tab-faq">
+        <div class="panel-card">
+          <h2>答疑：架构、迁移与外部服务的常见问题</h2>
+          <p class="sub">这部分按通用架构整理，不绑定某个具体项目：问题已改写为通用问法，答案是讨论后定下来的结论，标准做法也已同步写进前面的视图。Resend 部分只保留可复用的验证经验；DNS 记录、配额、控制台界面和账号策略以当前账户页面为准，不把一次实测当成所有账户的通用保证。</p>
+          <div class="qa-list">
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>数据库要不要跟代码一起打进镜像？</h3>
+              <p><span class="key">不打进镜像，也不在 VPS 上自托管，用托管服务。</span>镜像是代码，容器随时可以删掉重建——数据放进镜像，容器一删数据就没了，数据一变还得重打镜像。这是 Docker 的基本规矩：数据不进镜像。</p>
+              <p>这套架构更进一步：PostgreSQL 放 Supabase、Redis 放 Upstash，都是服务商托管的，数据根本不在这台 VPS 上。换镜像、重建容器、甚至换一台 VPS，数据都不受影响，新机器改个连接串就行。唯一要另外补的是备份：Supabase 免费版不带自动备份，要自己定时 <code>pg_dump</code> 到 R2（见「数据与备份」视图）。</p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>数据库、缓存、文件分开放，再加定时备份——这套分工对不对？</h3>
+              <p><span class="key">对，各管一摊。</span>一：分工不同——PostgreSQL（Supabase）是真正存数据的数据库；Redis（Upstash）是缓存和队列，严格说不算数据库，数据丢了能重建，所以叫「一个数据库 + 一个缓存」更准确；上传文件是第三摊，放 R2。二：数据库和缓存都用托管服务，省掉自己维护容器、数据卷和版本升级，免费额度对起步阶段基本够用。三：托管不等于不用备份——Supabase 免费版没有自动备份，稳妥做法仍是定时 <code>pg_dump</code> 导成 SQL 打包存到 R2，异地且在自己手里。Redis 不用备份。</p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>大版本对不上时，迁移到底改的是哪一边的结构？</h3>
+              <p><span class="key">两个都不是。</span>先纠正一个关键点：镜像里没有数据库，只有 Medusa 的程序代码和跟着代码版本走的迁移脚本；数据库在 Supabase 的托管 PostgreSQL 里，和镜像、和 VPS 都是分开的。跑迁移的过程是：拉新镜像 → 先用新镜像起一个一次性迁移容器、只跑迁移命令（不启动服务）→ 迁移程序先查数据库里一张记录表（记着哪些迁移已执行过）→ 按顺序执行没跑过的脚本，直接对 Supabase 的 PostgreSQL 发 <code>ALTER TABLE</code>、<code>CREATE TABLE</code>，把表结构改成新版需要的样子 → 迁移确认完成，再启动新的服务容器。所以不是你手动改数据库文件，也不是改镜像里的结构，而是<b>新镜像带的迁移脚本去改 Supabase 里数据库的表结构</b>，你只需要下「跑迁移」这个指令。</p>
+              <p>大版本对不上时，迁移可能不只是加列改表，还会动数据格式、拆表：按官方升级指南走，有时不能跳版本、要逐个版本升，有的版本要先跑 codemods 改代码。还有：跑迁移之前先备份——<code>db:rollback</code> 能回滚结构迁移，但有些数据迁移不可逆，这步不能省。</p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>数据库在服务商那、程序在镜像里，程序怎么改到数据库的结构？</h3>
+              <p><span class="key">关键一点：镜像启动后就是个活的程序，不是密封的盒子。</span>新镜像启动成容器，Medusa 程序跑起来，按 <code>DATABASE_URL</code> 通过公网加密连接连上 Supabase 的 PostgreSQL——和你在电脑上用数据库工具连上去是一回事，都是通过网络发 SQL；它把迁移脚本一条条发过去，PostgreSQL 执行完，表结构就变了。</p>
+              <p>所以镜像自己不改数据库，是镜像启动后跑起来的程序去改的。「镜像只读」指镜像自身的文件不能改，程序通过网络改数据库完全不受影响，因为数据库根本不在镜像里，在 Supabase 那边。前提只是 <code>DATABASE_URL</code> 配对：里面是 Supabase 的连接地址，程序通过公网 TLS 连过去发 SQL。</p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>数据库不在 VPS 上，数据到底存在哪？迁移脚本是框架自带的吗，会随镜像一起打包吗？</h3>
+              <p><span class="key">数据存在服务商那边。</span>业务数据在 Supabase 的托管 PostgreSQL 里，缓存和队列数据在 Upstash 的托管 Redis 里，都是服务商的机器在存、在维护。VPS 上只有 Medusa、Caddy、Worker 这些应用容器，本身不存业务数据——容器删了重建、甚至整台 VPS 换掉，数据都不受影响，新机器把连接串配上就能继续营业。</p>
+              <p>迁移脚本就是 Medusa 框架代码的一部分，每个模块（商品、购物车、订单等）都自带自己的迁移文件，打镜像时跟着代码一起打进去。链条是通的：代码更新 → 新镜像里有了新迁移脚本 → 跑迁移（连上 Supabase 执行）→ 数据库结构跟着变。<b>迁移脚本跟着代码走，数据在托管服务里，两边分开，各走各的。</b></p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>新镜像怎么知道数据库在哪，又怎么决定要执行哪些迁移？</h3>
+              <p><span class="key">这是两个不同的「怎么知道」。</span>数据库在哪——靠环境变量，不是写死在镜像里：Medusa 启动时读 <code>DATABASE_URL</code>（格式 <code>postgres://用户名:密码@主机:端口/库名</code>），这个变量在启动容器时传进去，里面填的是 Supabase 项目给的连接地址（走它的连接池），同一个镜像换个变量就能连不同的库（开发、staging、生产各一个 Supabase 项目）；<code>REDIS_URL</code> 同理，填 Upstash 给的连接地址。</p>
+              <p>什么时候执行——靠命令触发，官方标准命令是 <code>npx medusa db:migrate</code>，在容器里执行即可；生产把它做成部署流程里的一次性独立步骤，本地也可以写进启动脚本自动跑（见下一条）。跑哪些——程序自己判断：连上数据库先查记录表，再对照镜像里的迁移文件，把没跑过的按顺序执行。总结：<b>地址靠环境变量传进去，执行靠命令触发，跑哪些靠程序比对记录表自己决定。</b></p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>迁移应该在什么时候执行，生产和本地的做法一样吗？</h3>
+              <p><span class="key">不一样，按环境分。</span><b>生产环境用受控的一次性迁移步骤</b>：部署时单独跑一次 <code>db:migrate</code>，迁移完成后再启动 Server 和 Worker。好处是时序可控、不会多容器抢迁移，出问题也能在服务对外之前拦住。<b>本地 / 单容器才用 entrypoint 自动检查</b>：把 <code>db:migrate</code> 写进启动脚本，容器一启动先跑迁移再起服务，图省事——单容器不存在抢迁移的问题，这样最方便。</p>
+              <p>共同点是都不靠人记：生产靠自动部署脚本（<code>deploy.sh</code> / GitHub Actions）里固定的一步保证，本地靠 entrypoint 保证；迁移本身是幂等的，只跑没跑过的，重复执行也不会重复建表。大版本升级仍要先看官方升级指南、备份好，先在 staging 跑通再走生产的一次性步骤并手动确认。核心一句话：<b>迁移这步不要靠人记，要靠流程保证；生产用一次性步骤，本地才用自动检查。</b></p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>迁移脚本在镜像里，怎么做到迁移跑完再启动服务？</h3>
+              <p><span class="key">关键是分清：启动容器不等于启动服务。</span>镜像只是一个打包好的程序集合，里面可以有多条命令；容器只是运行环境，启动容器时让它跑哪条命令，它就只做哪件事。同一个镜像可以跑出两种完全不同的进程：一次性的迁移进程，和常驻的服务进程。</p>
+              <p>镜像自带一个默认命令，一般就是启动服务。不带命令启动容器，跑的就是默认命令：<code>docker run 新镜像</code> 等于直接起服务。带上命令，就是临时改跑指定的那一条，默认命令这次不执行：<code>docker run --rm 新镜像 npx medusa db:migrate</code> 只跑迁移，连上数据库、执行完未跑过的脚本就退出，根本不会启动 HTTP 服务；随后再 <code>docker run -d 新镜像</code> 起常驻的服务容器。</p>
+              <p>所以生产的一次性迁移步骤就是这么实现的：<b>同一个镜像，先起一个临时容器只跑迁移命令，跑完自动退出；确认迁移完成，再起服务容器跑默认命令。</b>两次用的镜像、网络和 <code>DATABASE_URL</code> 等环境变量完全一样，区别只在「这次让它干什么活」——平时起服务不用带命令，只有跑迁移那一次才需要带命令临时改跑。</p>
+            </div>
+            <div class="qa-item">
+              <h3><span class="qmark">Q</span>Resend 域名验证怎么做，为什么 DNS 记录加了还是发不了？</h3>
+              <p><span class="key">未验证域名不能当生产发信方案；先验证专用发信子域名，再让发件人地址与已验证子域名完全匹配。</span>在本次验证中，未验证域名只能使用 <code>onboarding@resend.dev</code> 作为沙箱发件人，收件人也受注册邮箱限制；要给真实顾客发送订单、发货或密码邮件，必须先验证自己的域名或子域名。实际验证经验是：用 <code>mail.example.com</code> 这类子域名比直接动根域名更稳，也便于把事务邮件和营销邮件隔离。不要用 <code>send.example.com</code> 作为验证子域名——Resend 默认会把 Return-Path 放在 <code>send</code> 子域名下，容易变成重复的 <code>send.send.example.com</code>；也不要复用已有其他记录的子域名，因为同名 CNAME 不能和其他记录共存。</p>
+              <p>2026 年 8 月后新建的域名通常会看到 <code>send.mail</code> 与 <code>rsend.mail</code> 两条 CNAME；本次还列出了 <code>resend._domainkey.mail</code> 的 DKIM TXT（具体公钥值只从控制台复制），页面还可能同时列出其他记录；<b>控制台列出的每一条都要添加</b>，少一条 CNAME 就可能停在 <code>partially_verified</code>。较老账号可能仍是 MX + TXT（含 SPF / DKIM）形式，记录的主机和值各账号不同，必须以 Resend 控制台当前显示的为准，不要照抄教程里的固定值。</p>
+              <p>如果 DNS 托管在 Cloudflare，Resend 相关 CNAME 要设为“仅 DNS”（灰云），不能开橙云代理，否则校验读到的是 Cloudflare 的地址；主机记录也不要重复填写域名后缀。加完记录后在 Resend 点 <code>I've already added the records</code> 触发校验；刚开始显示 Pending 很正常，等待 DNS 传播后再复查，这次实际验证约两分钟后变为 <code>Verified</code> / <code>Forge Ready</code>。如果 Resend 或 Cloudflare 登录触发异常或 Turnstile，按项目约束使用用户授权的本地 Chrome 完成操作，不依赖云端浏览器。</p>
+              <p>发件人必须从已验证的子域名发：验证 <code>mail.example.com</code> 后可以使用 <code>noreply@mail.example.com</code>、<code>orders@mail.example.com</code> 等任意前缀，但不能改成根域名地址，否则会报 <code>403 domain mismatch</code>。前缀默认只能发不能收；要接收顾客回复，还要在域名服务商配置 Email Routing。DMARC 建议先在根域名的 <code>_dmarc</code> TXT 使用 <code>p=none</code> 观察报告，确认 SPF / DKIM 对齐后再收紧策略；只加在发信子域名下的 DMARC 只覆盖该子域名。</p>
+              <p><span class="key">本次验证结论：</span>域名侧已经完成验证并开启发送；当前工作区的真实邮件链路仍需把运行时 <code>RESEND_FROM_EMAIL</code> 指向已验证子域名上的地址，再按项目测试流程发送真实测试邮件。不要把 API Key、完整 DKIM 公钥或控制台项目链接写入架构图。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        架构依据：Medusa v2 官方文档与升级流程，以及 Docker Compose + Caddy 的通用部署方式；数据库、缓存、支付、通知、文件存储分别按 Supabase、Upstash、Stripe、Resend、Cloudflare R2 的官方接入方式绘制。具体版本号与配置以实际项目为准。
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        var DETAILS = {
+          browser: {
+            title: "顾客浏览器",
+            tag: ["顾客侧", "ok"],
+            body: "顾客只接触两样东西：Vercel 上的店面页面，和经 Caddy 转发的 Medusa API。他们不需要知道后端在哪台 VPS 上。"
+          },
+          storefront: {
+            title: "Next.js 店面",
+            mono: "storefront · shadcn/ui + Tailwind CSS · Vercel",
+            tag: ["免费计划", "ok"],
+            body: "给顾客看的商店前台：商品页、购物车、结账页。UI 用 shadcn/ui + Tailwind CSS 搭：shadcn/ui 不是装进依赖的组件包，而是用 CLI 把组件源码复制进店面仓库的 components/ui 目录、归自己维护，样式全靠 Tailwind CSS 的 utility class 写，改主题、改组件都直接改源码，不被第三方组件库的版本和样式锁死；和 Next.js（Vercel）同生态，接入成本低。它自己不存数据，所有商品和订单都通过 API 向 Medusa 要。托管用 Vercel 免费 Hobby 计划——当前不涉及商业使用，Hobby 计划足够；之后真做商业售卖时再升级 Pro 或把店面自托管到 VPS。结账时它用 Stripe Publishable Key（NEXT_PUBLIC_STRIPE_KEY）在浏览器侧调起支付组件，这个 Key 是公开可暴露的；Secret Key 只在后端。它调用 Store API 时还要带上首次部署时生成的 Publishable API Key，没配就拿不到商品数据。搜索暂不接：店面先不上搜索框，以后要接再选 Meilisearch 或 Medusa Search。它和后端分开部署，后端换镜像不影响它。"
+          },
+          caddy: {
+            title: "Caddy",
+            mono: "reverse proxy",
+            tag: ["已配置", "ok"],
+            body: "VPS 的大门：接收 HTTPS 请求，自动申请和续期证书，再把请求转发给 Medusa 容器。它还多担一件事：对 /app 后台路径加一层防护——Caddy basic auth 或 Cloudflare Access 登录验证，不用改 Medusa 代码，后台就不止账号密码一道防线。配置和 Compose 放在一起、一起启动。"
+          },
+          medusa: {
+            title: "Medusa 后端",
+            mono: "Node.js 20+ · Docker 容器",
+            tag: ["核心", "ok"],
+            body: "整个店的大脑：商品、价格、购物车、订单、用户、Admin 后台都由它提供 API。它是 JavaScript 写的、跑在 Node.js 上的程序，打进你自己的 Docker 镜像里运行。镜像里没有数据库，只有代码和各模块自带的迁移脚本；它怎么找到数据库？启动时读环境变量 DATABASE_URL，里面是 Supabase 给的连接地址，通过公网加密连接过去；Redis 同理，REDIS_URL 指向 Upstash。上传文件不落它本地：经 @medusajs/medusa/file-s3 插件直接存到 Cloudflare R2，容器重建不丢图片。支付接 Stripe Module Provider：Secret Key 与 Webhook Secret 只放后端环境变量，付款结果靠 Stripe webhook 回调确认，并在后台的 Region 里启用 Stripe 才能收款。邮件通知接 Resend，异步任务由独立的 Worker 容器跑。迁移分环境：生产用受控的一次性步骤、跑完再启动服务，本地 / 单容器才用 entrypoint 启动时自动检查。Compose 里给它设了内存上限和日志轮转（10m×3），单个容器出问题不会拖垮整机、也不会把磁盘写满。它是空白版 Medusa：只有官方自带模块，不带任何业务定制。"
+          },
+          admin: {
+            title: "你（商家）",
+            tag: ["管理侧", "ok"],
+            body: "你用浏览器打开 Medusa 自带的 Admin 后台（经 Caddy 访问 VPS），上架商品、看订单、改价格。后台页面本身也是 Medusa 容器提供的，不需要单独部署；入口在 Caddy / Cloudflare Access 那层多加了一道验证，不是只靠账号密码裸奔。注意 Admin 是静态页面：它靠配置里的 admin.backendUrl（环境变量 MEDUSA_BACKEND_URL）指向后端公网地址才知道去哪调 API，这个变量没配或配错，后台就会打不开；同时后端地址本身要加进 ADMIN_CORS / AUTH_CORS，登录才不会被跨域拦住。"},
+          postgres: {
+            title: "Supabase PostgreSQL",
+            mono: "托管服务 · 免费版",
+            tag: ["真数据库", "ok"],
+            body: "所有业务数据的家：商品、订单、用户、库存。它不打进 Medusa 镜像，也不在 VPS 上跑容器，而是用 Supabase 的托管 PostgreSQL（免费版，数据库额度对起步阶段够用）。Medusa 通过 DATABASE_URL 里 Supabase 给的连接地址（走连接池）连过去。换镜像、删容器、换 VPS 都不动它。备份只备它——但注意 Supabase 免费版不带自动备份，所以定时 pg_dump 远程导出后存进 Cloudflare R2 的备份 bucket（每天留 30 天、每月留 3 个月），并定期做恢复演练。还有一条：免费项目长期没有任何活动会被暂停，生产店有正常流量一般不会触发。"
+          },
+          redis: {
+            title: "Upstash Redis",
+            mono: "托管服务 · 免费版",
+            tag: ["只是缓存", "ok"],
+            body: "给 Medusa 打下手，严格说不是业务数据库，用 Upstash 的托管 Redis（免费版），不在 VPS 上跑容器。生产环境要给它配齐四个模块，缺一个都可能出问题：Caching（缓存）、Event Bus（事件总线）、Workflow Engine（工作流引擎）、Locking（分布式锁），四个模块都通过 REDIS_URL 连同一个 Upstash 数据库。免费版有每日命令数上限，起步阶段够用，真跑超了再升付费。它的数据丢了能重建，所以不做备份，也不用异地存放。"
+          },
+          r2: {
+            title: "Cloudflare R2",
+            mono: "@medusajs/medusa/file-s3",
+            tag: ["文件存储", "ok"],
+            body: "商品图片等上传文件的家。Medusa 配 @medusajs/medusa/file-s3 插件（S3 兼容），endpoint 指向 R2、填好文件 bucket 和 API Token，上传就直接进 R2，不落 Medusa 容器本地——容器重建、换机器都不丢图。R2 每月 10GB 存储免费、出口流量免费，这个量级基本零成本。生产环境的 file_url 要用绑在 R2 上的自定义域名，不要用 r2.dev 公开链接——r2.dev 只适合开发调试，有速率限制、不适合正式营业。注意它和备份 bucket 是两个 bucket：这个存营业文件，另一个存数据库备份。"
+          },
+          monitor: {
+            title: "站外监控",
+            mono: "Uptime Kuma · 另一台 VPS",
+            tag: ["监控", "ok"],
+            body: "店铺的哨兵：Uptime Kuma 搭在另一台高资源 VPS 上（或用 UptimeRobot 免费版），每分钟检查一次首页和 /health，挂了立刻发 Telegram 或邮件。它必须和店铺分开放不同机器——同机的话，机器一挂监控也跟着哑了。单机部署本身仍是单点，这个阶段接受，但至少第一时间知道。"
+          },
+          "medusa-image": {
+            title: "Medusa 镜像",
+            mono: "image · 只含代码",
+            tag: ["不含数据", "ok"],
+            body: "镜像里只有 Medusa 的代码、依赖和各模块自带的迁移脚本，没有任何商品、订单、用户数据。数据一旦打进镜像，容器一删就没了，数据一变还得重打镜像——所以从一开始就把代码和数据分开：镜像管代码（含迁移脚本），数据在 Supabase / Upstash 托管服务里。数据库地址也不写死在镜像里，靠启动时传入的 DATABASE_URL 环境变量。"
+          },
+          backup: {
+            title: "备份文件",
+            mono: "pg_dump → .sql.gz",
+            tag: ["定时备份", "ok"],
+            body: "定时对 Supabase 里的 PostgreSQL 远程跑 pg_dump 导出的逻辑备份：一个带日期的 SQL 压缩包，可移植、能在任何新库里导入恢复，按每天留 30 天、每月留 3 个月的策略存进 R2 备份 bucket，超期自动清理。Supabase 免费版没有自动备份，这份导出就是唯一的保命副本，不能省。而且备份要定期演练恢复：每季度新建一个临时 Supabase 项目导入一次，确认能恢复。"
+          },
+          offsite: {
+            title: "异地存放",
+            mono: "Cloudflare R2 · 备份 bucket",
+            tag: ["异地存放", "ok"],
+            body: "备份包存进 Cloudflare R2 的备份 bucket（与存商品图的文件 bucket 分开）：它和 Supabase、VPS 都不在一处，任一边出事都还有这份副本。真要恢复时反过来走：从 R2 把备份拿回来导入一个新的 Supabase 项目、改 DATABASE_URL 指向新库，再验证商品和订单都在；平时每季度也照这个流程演练一次恢复。"
+          },
+          dev: {
+            title: "本地开发",
+            mono: "npm",
+            tag: ["起点", "ok"],
+            body: "你在本地 Linux 改代码、升 @medusajs/* 依赖、本地跑通再提交。本地可以直接按目标部署环境验证镜像，不需要依赖远程 Linux 调试机；正式镜像由 CI 按 Dockerfile 构建。"
+          },
+          repo: {
+            title: "GitHub 仓库",
+            mono: "monorepo",
+            tag: ["已就位", "ok"],
+            body: "monorepo：Medusa 后端和 Next.js 店面在同一个仓库里，店面 UI 用 shadcn/ui + Tailwind CSS（shadcn 组件源码放在店面自己的 components/ui 里维护）。后端从空白 Medusa 起步，只有官方模块，不带任何业务定制；仓库结构按这张图组织。"
+          },
+          actions: {
+            title: "GitHub Actions",
+            mono: "CI",
+            tag: ["已就位", "ok"],
+            body: "每次 push 到 main 自动触发一条带门禁的流水线：先按 Dockerfile 构建后端镜像推到 GHCR，再把新版本部署到 staging 跑迁移、验证下单与后台；只有 staging 通过，才自动 SSH 到生产 VPS 执行 deploy.sh 完成生产部署，没通过就停在 staging、生产保持旧版本。你什么都不用做，推代码就行，不用再手动登录服务器一步步敲。"
+          },
+          ghcr: {
+            title: "GHCR 镜像仓库",
+            mono: "GHCR · backend:<sha>",
+            tag: ["已就位", "ok"],
+            body: "GitHub 的镜像仓库，CI 打好的镜像存放在这里，标签是 commit 号，amd64/arm64 双架构都有。staging 与生产部署时都从这里拉同一个镜像，本地永远不用手动打包上传。"
+          },
+          staging: {
+            title: "Staging 环境",
+            mono: "生产门禁",
+            tag: ["部署门禁", "plan"],
+            body: "生产部署前的最后一道门：和生产同套 Compose、同一个镜像，换个子域名和端口；数据库用一个独立的 Supabase 项目（导入一份生产备份）、Redis 用一个独立的 Upstash 数据库，不需要在 VPS 上另起数据库容器。每次 push 后新版本先部署到这里，跑迁移、验证下单与后台；通过了流水线才放行生产部署，没通过就停在这里，生产继续跑旧版本。注意 Supabase 免费项目长期无活动会被暂停，staging 久置不用后先确认项目是唤醒状态再部署。"
+          },
+          stripe: {
+            title: "Stripe 支付",
+            mono: "Payment Module Provider",
+            tag: ["支付", "plan"],
+            body: "空白版 Medusa 默认不能收款，支付要接服务商：后端在配置里装 Stripe Module Provider，Secret Key（STRIPE_API_KEY）和 Webhook Secret（STRIPE_WEBHOOK_SECRET）只放服务器环境变量；Stripe 后台把 webhook 指向后端的支付回调地址，付款结果以 webhook 为准，不能只信前端跳转。店面侧只用 Publishable Key（NEXT_PUBLIC_STRIPE_KEY）调起支付组件。最后还要在 Medusa 后台的 Region（销售区域）里启用 Stripe 支付提供商，顾客结账时才能看到这个付款方式。"
+          },
+          resend: {
+            title: "Resend 通知",
+            mono: "Notification Provider",
+            tag: ["通知", "plan"],
+            body: "空白版 Medusa 默认不会发邮件：订单确认、发货、找回密码这些通知要接 Resend 这类邮件服务商，后端配 Notification Provider 并把 RESEND_API_KEY 放环境变量。发送是异步的，由 Worker 容器消费事件后调用 Resend 发出，不阻塞顾客下单。发信前必须先在 Resend 验证自己的域名或子域名；未验证时只能使用沙箱发件人并受限于账户的测试收件人。SPF、DKIM 和 Return-Path 的记录以当前域名控制台显示的值为准，不同账号或域名创建时间可能出现 CNAME 或 MX + TXT 组合；Cloudflare 的 CNAME 要设为仅 DNS。发件地址必须属于已验证的子域名，前缀不会自动创建收件箱，地址从 RESEND_FROM_EMAIL 等环境变量注入。免费额度、记录格式和控制台界面以当前账户为准；本次只验证到域名状态，真实 Medusa 端到端投递还需在 Provider 修复后单独测试。"
+          },
+          worker: {
+            title: "Medusa Worker 容器",
+            mono: "worker mode · 独立容器",
+            tag: ["异步任务", "plan"],
+            body: "和 Server 用同一个镜像、同一套配置，只是以 worker 模式启动的独立容器：专门跑异步活——事件订阅、工作流的后台步骤、订单通知发送等。Server 只管接请求，耗时的事丢给 Worker，顾客下单不用等邮件发完。部署顺序上它和 Server 一样，都在一次性迁移完成之后才启动。"
+          },
+          vpspull: {
+            title: "VPS 上线",
+            mono: "deploy.sh",
+            tag: ["已配置", "ok"],
+            body: "只有 staging 验证通过后才会走到这一步。部署不再靠人手动 SSH 敲命令：deploy.sh 一键串起整条链——先对 Supabase 远程 pg_dump 备份并存进 R2、拉下新镜像、先用一次性步骤单独跑 db:migrate（对照数据库里的迁移记录表、只跑没跑过的）、迁移跑完后用新镜像起临时容器跑 npx medusa user -e <admin-email> -p <admin-password-from-secret> 自动创建默认管理员（幂等：数据库里已有管理员就跳过，不会因为用户已存在让部署失败；首次登录后立即改密码）、确认完成后再用 Compose 启动 Caddy、Medusa Server 和 Worker。数据库在 Supabase、缓存在 Upstash，都是托管的，不在这台机器上起容器，部署时不碰它们。生产迁移不靠人记、也不靠 entrypoint 自动跑，避免多容器抢迁移；entrypoint 自动检查只用于本地 / 单容器。Compose 里每个服务都配了日志轮转（max-size 10m、max-file 3）和内存上限。"
+          },
+          dockerfile: {
+            title: "Dockerfile",
+            mono: "FROM node:22-alpine",
+            tag: ["自己维护", "plan"],
+            body: "官方没有发布现成的 Medusa 镜像（Docker Hub 上没有 medusajs/medusa），官方教程就是让你自己写 Dockerfile 把自己的项目打进去。图里的空白版 Medusa 就按这套写法打镜像。"
+          }
+        };
+
+        function renderDetail(box, key) {
+          var d = DETAILS[key];
+          if (!d || !box) return;
+          var tagHtml = d.tag ? '<span class="tag tag-' + d.tag[1] + '">' + d.tag[0] + "</span>" : "";
+          var monoHtml = d.mono ? ' <span class="mono">' + d.mono + "</span>" : "";
+          box.innerHTML = "<h3>" + d.title + monoHtml + tagHtml + "</h3><p>" + d.body + "</p>";
+        }
+
+        var views = { run: "detail-run", ci: "detail-ci", data: "detail-data" };
+        Object.keys(views).forEach(function (view) {
+          var box = document.getElementById(views[view]);
+          var section = document.getElementById("view-" + view);
+          if (!box || !section) return;
+          var nodes = section.querySelectorAll(".node");
+          var firstKey = view === "run" ? "medusa" : view === "data" ? "backup" : "ghcr";
+          nodes.forEach(function (n) {
+            if (n.getAttribute("data-key") === firstKey) n.classList.add("selected");
+            function pick() {
+              nodes.forEach(function (m) { m.classList.remove("selected"); });
+              n.classList.add("selected");
+              renderDetail(box, n.getAttribute("data-key"));
+            }
+            n.addEventListener("click", pick);
+            n.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+            });
+          });
+          renderDetail(box, firstKey);
+        });
+
+        var tabs = document.querySelectorAll(".tab");
+        tabs.forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            tabs.forEach(function (t) { t.setAttribute("aria-selected", "false"); });
+            tab.setAttribute("aria-selected", "true");
+            document.querySelectorAll(".view").forEach(function (v) { v.classList.remove("active"); });
+            document.getElementById("view-" + tab.getAttribute("data-view")).classList.add("active");
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

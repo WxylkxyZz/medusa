@@ -1,0 +1,46 @@
+# Node / package manager artifacts
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*:Zone.Identifier
+
+# Build and runtime output
+dist/
+build/
+.next/
+.medusa/
+apps/backend/public
+coverage/
+*.log
+*.tsbuildinfo
+
+# Local data and scratch output
+data/
+.tmp/
+.tmp-*/
+tmp/
+*.tmp
+
+# Local infrastructure state
+postgres-data/
+redis-data/
+backups/
+
+# Local-only project metadata and handoff material
+.claude/
+B2C-Medusa-交接文档.md
+Resend-域名验证经验.md
+
+Thumbs.db
+.vscode/
+.idea/
