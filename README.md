@@ -2,7 +2,7 @@
 
 当前项目已有本地 npm workspace、Medusa Backend/Worker、Next.js Storefront、本地 PostgreSQL/Redis Compose、Dockerfile 和环境模板。Resend Notification Provider、订单确认/发货/密码重置模板与订阅器、本地 Store/Region/Sales Channel/Publishable API Key/测试商品 bootstrap 已实现并完成本地验证。Storefront 商品列表、详情和访客购物车已实现，并用真实本地 Medusa 数据完成 HTTP/服务端渲染验证；购物车宿主机手动验收已按用户报告通过（非代理浏览器实测或逐项证明）。这不是最终 UI 设计，结账、订单店面闭环和支付仍未实现。
 
-R2 文件 provider 已配置，先前真实 smoke test 已验证上传、公开 URL 访问、File Module 读取、删除以及删除后的拒绝访问。本轮已通过独立的 `medusa exec` / File workflow 上传合成 PNG，验证公开读取及本地商品图片关联，列表/详情 SSR 均输出真实图片标签；**宿主机手动验收已按用户报告通过（“已测试完成 没有问题”），非代理浏览器实测或逐项检查证明**。这不覆盖 Admin multipart 上传接口；媒体轮复用的旧 Backend 容器未启用 R2 上传配置，并在该轮清理时停止；后续购物车联调已再次启动原服务，当前状态见下文。Stripe 明确暂缓；生产 migration/recovery scripts、Caddy、CI/GHCR 和 staging/production 仍未实现。
+R2 文件 provider 已配置，先前真实 smoke test 已验证上传、公开 URL 访问、File Module 读取、删除以及删除后的拒绝访问。本轮已通过独立的 `medusa exec` / File workflow 上传合成 PNG，验证公开读取及本地商品图片关联，列表/详情 SSR 均输出真实图片标签；**宿主机手动验收已按用户报告通过（“已测试完成 没有问题”），非代理浏览器实测或逐项检查证明**。这不覆盖 Admin multipart 上传接口；媒体轮复用的旧 Backend 容器未启用 R2 上传配置，并在该轮清理时停止；后续购物车联调已再次启动原服务，当前状态见下文。Stripe 明确暂缓；CI 与 GHCR 镜像发布已建立（`.github/workflows/quality.yml`、`publish.yml`，发布 `medusa-backend`/`medusa-storefront` 的 `main` 与 `sha-<sha>` 标签），其中 `sha-1d7cf47…` 与最新的 `sha-f601b34…` 均已实拉并完成启动验证（见下文）；生产 migration/recovery scripts、Caddy、staging/production 部署、结账与订单闭环仍未实现。
 
 ## 当前文档
 
@@ -79,11 +79,11 @@ R2 文件 provider 已配置，先前真实 smoke test 已验证上传、公开 
 
 ## GitHub、Docker 与发布时机
 
-这几个步骤要分开看，当前并不是“还不能碰 Docker”或“必须等所有功能完成才推送 GitHub”：
+这几个步骤要分开看：Docker 和 GitHub 基线已可用，但 CI 产物不等于可上线。
 
-- **GitHub 源码版本管理**：`origin` 已配置，当前 `main` 尚无提交，本轮未 commit/push。完成本地质量门禁和秘密扫描后即可提交、推送稳定基线；不必等所有业务功能或最终 UI 完成，也不等同于可以上线。提交/推送需另有明确请求。
+- **GitHub 源码版本管理**：`origin`（`github.com/WxylkxyZz/medusa`）已配置，`main` 已推送到 `f601b34`，本地与远端一致、工作区干净；本地 `main` 未设置 upstream tracking，后续推送仍需显式指定 `origin main`。源码版本管理与正式发布准备度分开判断；新增提交/推送仍需明确请求。
 - **本地 Docker**：Backend/Storefront Dockerfile 和 Compose 已存在，`docker compose -f infra/local/compose.yaml up --build -d` 用于本地构建和联调，不是 GHCR 发布流程。当前 Compose Storefront 启动开发模式；上面的 production build 验证是单独运行的。
-- **CI/GHCR**：目前没有 GitHub Actions 或镜像发布流水线。CI 可在稳定基线阶段建立，不需要等待业务闭环；发布候选镜像需补齐目标业务范围的集成测试及发布验证。
+- **CI/GHCR**：已建立。`quality.yml` 在 PR、`main` push 和 `workflow_call` 时运行 `npm ci`、Compose 校验、lint、typecheck、`npm test` 与完整构建（仅公开占位构建变量）；`publish.yml` 以 `quality` 为门禁，在 `main` push 和手动触发时推送 `ghcr.io/wxylkxyzz/medusa-backend`、`ghcr.io/wxylkxyzz/medusa-storefront` 的 `sha-<sha>` 与 `main` 标签。最新 `sha-f601b34…` 两个镜像已从 GHCR 实拉并做启动验证：Backend 从空库迁移成功后 `/health` 与 Admin 返回 200；Storefront `/store` 与 `/cart` 返回 200、以非 root `node` 用户运行，Backend 不可达时显示安全降级提示。验证用的临时容器、网络和镜像已清理，并已 `docker logout ghcr.io`。较早的 `sha-1d7cf47…` 也有同等的实拉启动验证。`main` 无分支保护；`npm audit` 告警仍为 24 项（1 high、23 moderate）未处理。
 - **staging/production**：仍需 staging 彩排、受控迁移、管理员 bootstrap、健康检查和回滚/备份验证。生产不能照搬本地 Compose 或本地默认密钥。
 
 源码管理、CI 建设与业务完善可以并行；正式发布准备度单独判断，不能把“可推送源码”写成“已具备上线条件”。
@@ -94,7 +94,7 @@ R2 文件 provider 已配置，先前真实 smoke test 已验证上传、公开 
 2. 商品媒体的受控 workflow 上传、公开读取、测试商品关联与 SSR 已验证；继续补齐 Admin HTTP multipart 认证上传接口验证及媒体集成回归测试，不能据此宣称 Admin 上传已就绪。浏览器逐项与 DevTools 证据未独立留存。
 3. 访客购物车及离线/真实 Storefront HTTP 集成已实现并验证，宿主机手动验收已按用户报告通过；结账、订单店面闭环及其集成测试仍未实现，购物车数量徽标也不在当前范围。继续补充通知失败/重试和更多业务场景，通知模板测试不代表下单已打通。
 4. **Stripe 测试支付暂不接入**，后续单独评估；不新增搜索。
-5. 建立 CI/GHCR，并补齐 Caddy、staging、备份恢复和生产发布流程。
+5. CI/GHCR 与最新镜像的实拉启动验证均已建立/完成；待办转为补齐 Caddy、staging、备份恢复、生产发布流程与依赖审计处置（当前 24 项告警）。
 
 ## 质量命令
 
