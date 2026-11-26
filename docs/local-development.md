@@ -206,7 +206,10 @@ Compose 会先运行一次性 `migrate` 服务，成功后才启动 Backend Serv
 
 ## 从本地开发到 GitHub、Docker 和发布
 
-- 本地 Docker 已可构建 Backend、Worker 和 Storefront，并先执行一次性 migration；这是本地联调，不代表已有 GHCR 或生产流水线。
-- GitHub `origin` 已配置，当前 `main` 无提交，本轮未 commit/push。源码版本管理可从稳定基线开始，不必等待所有业务功能或最终 UI。先做本页质量检查和秘密扫描，再按明确请求提交/推送。
-- CI/GHCR 尚未建立。CI 可与业务完善并行；不要把“先完成所有业务”当作首次 GitHub 推送或建立 CI 的硬门槛。镜像发布与正式上线的准备度需单独判断。
+- 本地 Docker 已可构建 Backend、Worker 和 Storefront，并先执行一次性 migration；这是本地联调，不代表已有生产流水线。
+- 首次基线已提交并推送到 `origin`/`main`（提交 `da134d4`，71 个文件）。源码版本管理与正式发布准备度分开判断，不必等全部业务功能或最终 UI。
+- CI 已建立：`.github/workflows/quality.yml` 在 PR、`main` push 和可复用调用时执行 `npm ci`、Compose 配置校验、lint、typecheck、`npm test` 和完整构建，只使用公开占位构建变量，不读取真实凭据。
+- 镜像发布已建立：`.github/workflows/publish.yml` 先用 `quality` 复用工作流做门禁，通过后以提交 SHA 和 `main` 标签推送 `ghcr.io/<owner>/medusa-backend`（Server 与 Worker 同镜像）和 `ghcr.io/<owner>/medusa-storefront` 到 GHCR，使用 `GITHUB_TOKEN` 和 `packages: write`，并带 Buildx 缓存与 OCI source/revision 标签。首次成功运行与镜像可见性尚未验证。
+- Storefront Dockerfile 现为多阶段：Compose 使用 `development` target 保持 `next dev`，GHCR 使用 `production` target 运行 `next start`。生产阶段以非 root `node` 用户运行，构建不需要真实环境变量。
+- 本地已用清洁 Git 上下文实际构建并启动过两个镜像：Storefront 生产镜像 `/store`、`/cart` 返回 200，Backend 不可达时显示安全提示；Backend 镜像从空库迁移成功、`/health` 与 Admin 均返回 200。测试容器、网络和临时镜像已清理，未推送任何镜像。
 - staging/production 仍需 Caddy、独立环境注入、备份恢复验证，以及“单独迁移 → 管理员 bootstrap → Server/Worker 启动 → 健康检查”的顺序。不能把本地 Compose 当作生产部署。

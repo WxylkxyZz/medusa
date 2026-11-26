@@ -99,6 +99,7 @@ services:
     build:
       context: ../..
       dockerfile: apps/storefront/Dockerfile
+      target: development
     environment:
       NODE_ENV: development
       MEDUSA_BACKEND_URL_INTERNAL: http://backend-server:9000

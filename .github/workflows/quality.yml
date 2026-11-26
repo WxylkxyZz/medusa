@@ -1,0 +1,55 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Build-time placeholders only. Catalog and cart routes read configuration at
+  # runtime, so the build must never need real credentials or reachable services.
+  NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://127.0.0.1:1
+  NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_build_placeholder
+  NEXT_PUBLIC_DEFAULT_REGION: us
+  NEXT_PUBLIC_BASE_URL: http://localhost:8000
+
+jobs:
+  quality:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate local Compose configuration
+        run: npm run compose:config
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Build backend, Admin, and Storefront
+        run: npm run build
