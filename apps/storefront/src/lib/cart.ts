@@ -7,7 +7,7 @@ export type CartLine = {
 }
 export type Cart = {
   currencyCode: string; lines: CartLine[]
-  subtotal: Price | null; total: Price | null; taxTotal: Price | null; discountTotal: Price | null
+  subtotal: Price | null; itemSubtotal: Price | null; total: Price | null; taxTotal: Price | null; discountTotal: Price | null
 }
 export type CartIssue = "configuration" | "backend" | "uncertain" | "input" | "stock" | "rejected" | "missing" | "completed" | "mismatch" | "line" | "variant" | "origin"
 export class CartError extends Error {

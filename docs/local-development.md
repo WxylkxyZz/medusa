@@ -17,12 +17,25 @@ NEXT_PUBLIC_BASE_URL=http://localhost:8000 \
 npm run build
 ```
 
-- 购物车实现/复核及运行报告记录根 lint、typecheck 和 tests 通过：Backend 20 个、Storefront 102 个离线测试。单独执行店面测试可用 `npm test --workspace=@b2c/storefront`；新增购物车及回归测试共 58 个，原商品测试 44 个。
-- Storefront 测试覆盖原商品/区域/API 边界，以及购物车金额、数量、行归属、cookie/Origin、国家/Region/渠道一致性、失效与上游错误区分、写入不重试、Web Locks 协调和 Medusa 2.23.0 离线 validator 合约。这些不是 React 事件、浏览器交互或 E2E 测试。
-- 复核报告记录完整根 `npm run build` 在占位公开配置、不可达 Backend 下通过，包含 Backend、Admin 和 Storefront；未观察到 Backend 构建失败。运行报告另记录 fresh Storefront production build 通过。`/store`、`/store/[handle]`、`/cart`、`/api/cart` 动态执行，构建不依赖真实 Backend。编译检查确认服务端运行时读取保留；运行报告检查响应及 22 个客户端 JS 未见测试的 key/Backend 配置标记，不构成穷尽安全证明。
-- 现有非失败警告包括 Node 原生 TypeScript 测试的 module-type 警告、Backend 的实验 VM/Jest force-exit 提示。不能把通过测试等同于已无运行时风险。
+- 购物车/结账/SEO 实现、复核及运行报告记录根 lint、typecheck 和 tests 通过：Backend 27 个、Storefront 135 个离线测试，共 162 个。单独执行店面测试可用 `npm test --workspace=@b2c/storefront`；Backend 脚本测试可用 `npm run test:unit --workspace=@b2c/backend`。
+- Storefront 测试覆盖原商品/区域/API 边界，以及购物车金额、数量、行归属、cookie/Origin、国家/Region/渠道一致性、失效与上游错误区分、地址规范化/校验、shipping option 投影与归属校验、Items subtotal/Shipping/Estimated total 金额投影、写入不重试、Web Locks 协调和 Medusa 2.23.0 离线 validator 合约，并确认 payment/order 调用不发生。本轮新增覆盖 robots/sitemap、商品 JSON-LD/Open Graph 元数据、shipping/returns policy 状态及 shipping fixture 纯函数。这些不是 React 事件、浏览器交互或 E2E 测试。
+- 复核报告记录完整根 `npm run build` 在占位公开配置、不可达 Backend 下通过，包含 Backend、Admin 和 Storefront；未观察到 Backend 构建失败。运行报告另记录 fresh Storefront production build 通过。`/store`、`/store/[handle]`、`/cart`、`/checkout`、`/api/cart`、`/api/checkout`、`/robots.txt`、`/sitemap.xml` 动态执行，构建不依赖真实 Backend。编译检查确认服务端运行时读取保留；运行报告检查响应及客户端 JS 未见测试的 key/Backend 配置标记，不构成穷尽安全证明。
+- 现有非失败警告包括 Node 原生 TypeScript 测试的 module-type 警告、Backend 的实验 VM 模块警告、Jest force-exit 提示、Backend 构建在未配置 `redisUrl` 时使用 fake Redis，以及 Medusa 构建跳过不可用的 link 目录。不能把通过测试等同于已无运行时风险。
 
-Backend 已包含 Resend Provider、订单确认/发货/密码重置模板和订阅器；本地 Store/Region/Sales Channel/Publishable API Key/测试商品 bootstrap 已验证。R2 通用文件能力已完成先前真实 smoke test；本轮受控 File workflow 上传、公开读取及商品图片关联/SSR 已验证，宿主机手动验收按用户报告通过（非代理浏览器实测或逐项证明），Admin HTTP multipart 认证上传接口仍未验证。Stripe 明确暂缓。
+Backend 已包含 Resend Provider、订单确认/发货/密码重置模板和订阅器；本地 Store/Region/Sales Channel/Publishable API Key/测试商品 bootstrap 已验证。R2 通用文件能力已完成先前真实 smoke test；本轮受控 File workflow 上传、公开读取及商品图片关联/SSR 已验证，宿主机手动验收按用户报告通过（非代理浏览器实测或逐项证明），Admin HTTP multipart 认证上传接口仍未验证。结账基础流程已实现地址收集/更新和真实 shipping option 查询、校验与写入逻辑；本地 shipping fixture 已创建并通过连续两次 bootstrap 的幂等验收，真实运行时已验证 Standard Shipping 选项出现，选择后页面以 Items subtotal (before tax)、Shipping、Estimated total reported by store 显示 USD 10.00、USD 5.00、USD 15.00，并在 cookie 刷新后保持；非法 option 被拒绝且已选配送与金额不变。Stripe 明确暂缓，支付和订单完成未实现。
+
+## 本地 shipping fixture
+
+`apps/backend/src/scripts/shipping-fixture.ts` 定义仅用于本地 bootstrap 的 fixture 值，`bootstrap-local.ts` 负责创建/复用并做写后校验：
+
+- Fulfillment Set：`US Warehouse Shipping`（type `shipping`）；Service Zone：`United States`（country `us`）
+- Shipping Profile：`Local Test Product Shipping`（type `default`），关联本地测试商品
+- Shipping Option：`Standard Shipping`，type label `Standard` / code `standard` / description `5-7 day transit`，provider `manual_manual`，`price_type: flat`，USD `5.00`
+- 这些值均为 **user-approved 本地业务值**：USD 5.00 flat、standard service、5-7 天 transit、**tax not inclusive**；不是生产费率或税务配置。
+
+fixture 的纯函数（匹配条件、创建 payload、写后问题检查）有 Backend 单元测试覆盖；`isFixtureShippingOption` 以名称、service zone、shipping profile、provider 和 `price_type` 做稳定匹配，重跑不依赖硬编码 ID。
+
+**本轮运行时结果（bootstrap、幂等和配送选择均已通过）：** 受控迁移成功后重建并启动当前 Backend/Worker，连续运行本地 bootstrap 两次均成功。已确认持久化且无重复的 `US Warehouse Shipping` fulfillment set、`us` service zone、`manual_manual` provider 关联、`Standard Shipping` option 和 `Local Test Product Shipping` profile；fixture 定义值为 USD 5.00 flat、Standard、5-7 day transit、tax not inclusive。Storefront 使用受保护 publishable key 启动，地址写入后真实 shipping-options 返回 1 个 Standard Shipping 选项；选择后 shipping method 持久化，店面请求并投影 `item_subtotal`，页面以 Items subtotal (before tax)、Shipping、Estimated total reported by store 显示 USD 10.00、USD 5.00、USD 15.00，刷新/复用 cookie 后保持；无效 option ID 被安全拒绝且已选配送方式与金额不变。
 
 **商品媒体轮人工验收与清理已完成（2026-11-25，历史状态）。** 受保护记录为 `cleanup-complete`，该次重试无新的权限拒绝；当时独立只读确认预览/proxy 停止、四个服务容器退出、8000/9000/55432/56379 无监听，保留容器、网络和卷。媒体恢复、QA 商品/对象精确删除及业务不变的保存证据仍有效，见下文历史留存记录。后续购物车联调曾重新启动原服务和 production 预览；**购物车轮清理重试现已完成：两个空测试 cart 精确软删除（非物理清除），Windows 转发由用户手动移除并经只读注册表确认不存在，预览、forwarder 与服务均停止，数据库卷和原有业务数据保留**。无待重试的上述清理项，详见[购物车运行证据与验收状态](#购物车运行证据与验收状态)。本次独立复核只读检查进程/端口、Docker、Windows 注册表和保存证据并更新文档，未重启服务、重跑质量命令、查询实时数据库、访问 R2、执行购物车写入或重复删除。
 
@@ -61,7 +74,7 @@ Compose 会先运行一次性 `migrate` 服务，成功后才启动 Backend Serv
      npm run bootstrap:local --workspace=@b2c/backend
    ```
 
-   脚本幂等创建/复用 USD Store、含 `us` 的 Region、Sales Channel、库存位置、渠道关联的 Publishable API Key 和已发布测试商品。新建测试商品为 USD 10、SKU `TEST-001`、Size `One Size`、库存 10；复用现有商品/库存时不会强制重置为这些初始值。该脚本不启用 Stripe，也不是生产初始化脚本。
+   脚本幂等创建/复用 USD Store、含 `us` 的 Region、Sales Channel、库存位置、渠道关联的 Publishable API Key 和已发布测试商品，并创建/复用本地 shipping fixture（见下节）。新建测试商品为 USD 10、SKU `TEST-001`、Size `One Size`、库存 10；复用现有商品/库存时不会强制重置为这些初始值。该脚本不启用 Stripe，也不是生产初始化脚本。运行验收已连续执行两次并确认 fixture 记录幂等存在，真实 Storefront 选择 Standard Shipping 后页面以 Items subtotal (before tax)、Shipping、Estimated total reported by store 显示 USD 10.00、USD 5.00、USD 15.00，刷新/复用 cookie 后保持；无效 option ID 被安全拒绝且已选配送方式与金额不变。
 3. key 不打印到日志，而是写入执行进程所在容器的受保护文件，默认 `/tmp/local-publishable-key`（可用 `LOCAL_PUBLISHABLE_KEY_FILE` 改路径）。通过受保护的本地设置流程读取并注入 `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`，不要输出实际值、放进 shell 历史、提交文件或截图。本页不提供真实 key。
 4. Compose 从启动它的环境读取 `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`；缺失时的 `replace-after-local-admin-setup` 不是可用 key。注入后需重新创建 Storefront 容器才会更新进程环境：
 
@@ -86,14 +99,14 @@ Compose 会先运行一次性 `migrate` 服务，成功后才启动 Backend Serv
 
 ## 访客购物车功能与运行时约束
 
-- `/store/[handle]` 可将当前选中、已定价且可购买的变体加入真实 Medusa cart；`/cart` 显示真实单价、行小计/估算行合计，以及 Medusa 返回的 subtotal/discount/tax/total。金额为主单位；缺失金额不编造。运费未选择，税费与库存仍可能变化，不承诺免费运费或最终订单总额。
+- `/store/[handle]` 可将当前选中、已定价且可购买的变体加入真实 Medusa cart；`/cart` 显示真实单价、行小计/估算行合计，以及 Medusa 返回并由店面投影的 **Items subtotal (before tax)**、**Shipping**、discount、tax 和 **Estimated total reported by store**。Items subtotal 使用 `item_subtotal`；`cart.subtotal` 是 Medusa 的 subtotal 字段，选择配送后可能包含配送金额，不能替代 Items subtotal。金额为主单位；缺失金额不编造。运费未选择，税费与库存仍可能变化，不承诺免费运费或最终订单总额。
 - 数量更新接受整数 1–99，移除是单独操作；Medusa 决定真实可用库存及数量相关价格。加入时复核发布、渠道可见、完整规格、价格及已有同变体合计数量；增加已有行也重新核验商品/变体可见性，减少/移除不要求重新购买资格。
 - 创建 cart 使用当前国家、Region、币种及可选渠道；读取/写入保存 cart 必须匹配这些上下文。未显式指定渠道时，通过商品渠道校验确认保存渠道仍被当前 key 授权（空目录有效），不能只依赖 Medusa 的 cart retrieval/line-write 授权。上游失败不放行写入或自动清 cookie。
 - 浏览器身份来自 `medusa_guest_cart` cookie：HttpOnly、SameSite=Lax、Path=/、Max-Age 30 天，不来自请求 JSON 或客户端公开 cart 模型。本地 HTTP loopback cookie 不带 Secure，即使 Next 是 production mode；HTTPS cookie 带 Secure，部署生产应使用精确匹配的 HTTPS base URL。有效期配置已离线检查，不等于真实 30 天留存已测试。
 - `POST /api/cart` 要求配置的精确 Origin、JSON 和同源 Fetch Metadata（若存在），校验有界输入及行归属。非 loopback HTTP 被明确拒绝；不通过伪造 Host/forwarded headers、Origin 重写或放宽 CSRF 来支持接口 IP 访问。
 - 缺失、已完成或不兼容的保存 cart 要用户显式 reset，不静默新建/转移商品。Reset 只清当前浏览器 cookie，不删除远端 cart、订单；即使 Backend/Region 不可用仍可 reset，但仍要求有效的 base URL/Origin。
 - 所有浏览器变更控件共享 origin-wide exclusive Web Lock；pending 时禁用，其他标签竞争操作被拒绝而非排队/重放。无 Web Locks（需安全上下文或 localhost）则不发送写入；这不是服务端或分布式锁。结果不确定时先打开/刷新 `/cart` 核对，不重复提交。
-- 无购物车数量徽标、checkout、支付或订单完成；Stripe 暂缓，不增加搜索，当前仍为中性功能 UI，非最终品牌设计。
+- `/checkout` 提供结账基础流程，但不等于订单完成：已实现地址收集/更新、真实 shipping option 查询/服务端归属校验/写入和估算金额显示；本地 fixture 已在源码定义并已由连续两次 bootstrap 幂等创建，值为 USD 5.00 flat/Standard/5-7 days/not tax inclusive；真实本地联调已验证 Standard Shipping 出现，选择后 USD 5.00 运费写入 Cart。subtotal 修复后，页面以 **Items subtotal (before tax)**、**Shipping**、**Estimated total reported by store** 显示 USD 10.00、USD 5.00、USD 15.00；这里的 `cart.subtotal` 是 Medusa 含配送的 subtotal，`item_subtotal` 才是 Items subtotal，不能混用；刷新后保持，非法 option 被拒绝且已选配送与金额不变。支付采集、payment session、Stripe、complete、订单提交和最终购买均未实现；现有通知模板/订阅器不代表下单闭环已打通。无购物车数量徽标，当前仍为中性功能 UI，非最终品牌设计。
 
 ### 购物车运行证据与验收状态
 
@@ -128,6 +141,41 @@ Compose 会先运行一次性 `migrate` 服务，成功后才启动 Backend Serv
 **最终清理结果：** Linux forwarder、Next 及四服务均停止，forwarder 脚本/状态/日志的历史清理已完成。先前仍在的 localhost `8000` portproxy 规则，用户现明确报告已手动删除；本次通过 Windows PowerShell 只读检查 `HKLM\SYSTEM\CurrentControlSet\Services\PortProxy\v4tov4\tcp`，确认值名 `127.0.0.1/8000` 不存在。用户手动删除与代理直接只读验证是不同证据；代理没有执行 Windows 删除、提权或网络配置修改。
 
 该项无需再执行删除命令，不为验证重启服务、不重新添加映射、不改其他规则。保留资源及恢复材料不属于待删除项；旧验收链接不是当前运行入口。
+
+## 结账基础流程：实现、验证与边界
+
+结账基础流程已实现，但**不等于订单完成**。`/cart` 链接到 `/checkout`；Storefront 通过 HttpOnly cart cookie 和严格同源的 `/api/checkout` 处理变更，不把 cart 身份交给客户端，也不绕过 Storefront 直接写 Medusa。
+
+### 实现范围
+
+- **地址收集/更新：** 服务端只接受允许的地址字段，校验字段类型、长度、控制字符和国家代码，并确认国家与真实 Region 一致；支持把同一地址作为 billing address，通过 Medusa cart API 持久化。配置缺失、区域不匹配、上游错误、缺失/已完成 cart 及写入结果不确定时显示安全状态，不对非幂等写入自动重试。
+- **真实 shipping option：** 从 Medusa 加载真实 shipping options 并做安全投影；选择前由服务端重新确认选项属于当前 cart 和 Region，再通过真实 API 持久化 shipping method。金额按 Medusa 主货币单位和实际币种显示并标为估算值，不虚构免费或 Standard Shipping 选项。
+- **支付边界：** Payment 区域显示当前不可用状态。代码不创建 payment collection、payment session，不调用 Stripe、complete、order submission 或最终购买流程；已有通知模板/订阅器不能替代下单闭环。
+
+### 离线测试与构建证据
+
+根 lint、typecheck、`npm test`、`npm run compose:config` 和占位公开配置下的完整 build 已通过：Backend 27 个、Storefront 135 个，共 162 个测试。结账测试覆盖请求契约、地址规范化和校验、Region/country 边界、shipping option 投影和归属校验、错误/安全状态、Web Locks、写入结果核对及 payment/order API 不被调用。这些是离线测试，不是浏览器 E2E；本节的 build/测试结果来自前序门禁与运行报告，本次文档更新没有重跑质量命令。
+
+### 真实本地 HTTP 集成（非浏览器 QA）
+
+使用真实本地 Medusa、production Storefront 和隔离 cart cookie 完成以下运行报告验证，未修改源码或 `.env`，未调用外部支付、邮件或 R2 provider：
+
+1. 提交有效地址后 Storefront 返回成功；Medusa cart 读回确认 shipping address 和同一 billing address 已持久化。cart 仍未完成且仍只有一个商品；刷新并重新使用 cookie 后，商品、地址和价格保持正确。
+2. 提交 malformed country code `USA` 返回安全的 HTTP 400，Medusa cart 地址和商品行保持不变。
+3. 真实 shipping-options 请求返回 HTTP 200，并返回 1 个 Standard Shipping 选项（USD 5.00、5-7 day transit、非含税）。通过 Storefront 选择后 shipping method 持久化，店面请求并投影 `item_subtotal`，页面以 Items subtotal (before tax)、Shipping、Estimated total reported by store 显示 USD 10.00、USD 5.00、USD 15.00；刷新/复用 cookie 后保持；不存在的 option ID 返回安全 409，已选配送方式与金额不变。选项的查询、投影、归属校验和写入逻辑均有离线与真实本地覆盖。
+4. Payment 区域显示不可用；Backend 日志未发现 payment collection、payment session、complete、order、Resend 或 R2 路由调用。隔离的 Backend 不可达验证中，`/checkout` 显示安全的 unavailable 状态，`/api/checkout` 返回 HTTP 503，未泄漏内部地址、key 或诊断。
+
+### 浏览器证据边界与未解决限制
+
+本轮未发现可用的本地 Chromium/Chrome，未验证 checkout hydration、地址/配送点击交互、pending/disabled、响应式视觉或 Console。此前用户报告通过的商品和购物车手动验收不包含 checkout，也没有本轮 checkout 的用户浏览器报告、截图或逐项 E2E 证据。支付采集、Stripe、订单提交、最终购买以及真实支付 provider 验证仍明确留待后续。
+
+## SEO、公开政策页面与本地运行证据
+
+- **robots/sitemap：** `/robots.txt` 允许公开页面并禁止 `/cart`、`/checkout`、`/api/`；`/sitemap.xml` 列出 `/`、`/store`、`/shipping`、`/returns` 及当前可见商品详情，无 origin 时返回空列表而不猜测主机名，Backend 不可用时至少保留静态公开路由。两者均为 `force-dynamic`，build 中保持 `ƒ`。
+- **商品结构化数据：** 详情页输出产品 JSON-LD，价格/币种来自真实 Region 变体价格，availability 映射 `InStock`/`OutOfStock`/`BackOrder`；无价格时不生成 offer。Open Graph 的 `product:price:amount`、`product:price:currency`、`product:availability` 通过 `metadata.other` 输出（inline `<meta property>` 会被 Next.js 丢弃，本轮已修正并加回归测试）。缺失商品或区域保持 noindex。
+- **政策页面：** `/shipping` 读取 Region metadata 的 allowlist 键（`shipping_rate`、`shipping_service`、`transit_days_min`/`max`、`tax_inclusive` 等），只做安全投影。无 shipping metadata 的 USD 本地政策使用已批准值：**USD 5.00 flat、standard service、5-7 days、tax not included**；其它币种或无效 metadata 显示 **not published**。`/returns` 只有存在有效 `return_window_days` 时才发布，否则显示 **not published**，不猜测退货期限/费用。
+- **本轮真实本地 HTTP 观察：** `/robots.txt`、`/sitemap.xml`（含 `http://127.0.0.1:8000/store/test-product`）、`/shipping`、`/returns`、`/store`、`/store/test-product` 均 HTTP 200；商品 JSON-LD 价格 `10.00`、币种 `USD`、`InStock` 有效。未做浏览器视觉/hydration/Console 验证。
+- **本轮 Storefront 证据：** 回归测试 135 通过、typecheck 通过、production build 通过；运行结束时临时 key 文件已移除、Storefront 子进程及所有服务已停止，端口 8000/9000/55432/56379 无监听。
 
 ## 商品列表/详情：功能与实际验证
 
@@ -202,7 +250,7 @@ Compose 会先运行一次性 `migrate` 服务，成功后才启动 Backend Serv
 
 ### 后续工作
 
-商品媒体宿主机手动验收已按用户报告通过，该轮受控清理及保存证据核对完成，不要求重复口头授权或重做媒体验收。后续补齐 Admin HTTP multipart 认证上传验证及商品媒体集成回归测试。访客购物车已实现，102 个 Storefront 离线测试及真实 production Storefront HTTP 集成通过；购物车宿主机手动验收也已按用户报告“测试完成没问题”通过（非代理浏览器逐项证明）。购物车轮清理重试已完成：两个空 cart 精确软删除（非物理清除），Windows localhost 转发由用户手动移除并经只读注册表确认不存在；预览、forwarder 和服务停止，数据库卷与原有数据保留，无待处理清理项。结账、订单店面闭环及其集成测试仍未实现；现有通知模板/订阅器不代表下单已打通。**Stripe 测试支付暂缓接入**，最终 UI 单独设计，不增加搜索。任何新运行或清理仍须遵守权限系统。
+商品媒体宿主机手动验收已按用户报告通过，该轮受控清理及保存证据核对完成，不要求重复口头授权或重做媒体验收。后续补齐 Admin HTTP multipart 认证上传验证及商品媒体集成回归测试。访客购物车已实现，Storefront 离线测试（最新门禁 135 个）及真实 production Storefront HTTP 集成通过；购物车宿主机手动验收也已按用户报告“测试完成没问题”通过（非代理浏览器逐项证明）。购物车轮清理重试已完成：两个空 cart 精确软删除（非物理清除），Windows localhost 转发由用户手动移除并经只读注册表确认不存在；预览、forwarder 和服务停止，数据库卷与原有数据保留。结账基础流程已实现，地址收集/更新和 Standard Shipping USD 5.00 选择的本地 HTTP 联调通过，页面以 Items subtotal (before tax)、Shipping、Estimated total reported by store 显示 USD 10.00、USD 5.00、USD 15.00 且刷新后保持；非法 option 被拒绝且已选配送与金额不变；支付采集、Stripe、订单提交、最终购买及 checkout 浏览器 E2E 仍未实现/验证；现有通知模板/订阅器不代表下单已打通。**Stripe 测试支付暂缓接入**，最终 UI 单独设计，不增加搜索。任何新运行或清理仍须遵守权限系统。
 
 ## 从本地开发到 GitHub、Docker 和发布
 

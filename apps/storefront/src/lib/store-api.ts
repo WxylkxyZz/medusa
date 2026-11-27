@@ -2,10 +2,20 @@ import type { Store } from "@medusajs/js-sdk"
 import { createMedusaRequest, StoreRequestError } from "./medusa-http.ts"
 import { PAGE_SIZE, MAX_PAGE, safeImageUrl } from "./catalog.ts"
 import type { Product, Variant } from "./catalog.ts"
+import { projectPolicyMetadata } from "./policies.ts"
+import type { PolicyMetadata } from "./policies.ts"
 
 type StoreProduct = Awaited<ReturnType<Store["product"]["list"]>>["products"][number]
 type StoreRegion = Awaited<ReturnType<Store["region"]["list"]>>["regions"][number]
-export type Region = { id: string; name: string; currencyCode: string; countryCode: string }
+export type Region = {
+  id: string
+  name: string
+  currencyCode: string
+  countryCode: string
+  // Allowlisted policy keys only, and only when the region declares any.
+  // Arbitrary region metadata never leaves the server.
+  metadata?: PolicyMetadata
+}
 export type StoreEnvironment = {
   MEDUSA_BACKEND_URL_INTERNAL?: string
   MEDUSA_SALES_CHANNEL_ID?: string
@@ -94,14 +104,19 @@ export function createStoreApi(env: StoreEnvironment, fetcher: typeof fetch = fe
     const limit = 100
     for (let offset = 0; offset < 1000; offset += limit) {
       const data = await get("store/regions", new URLSearchParams({
-        fields: "id,name,currency_code,*countries", limit: String(limit), offset: String(offset), order: "id",
+        fields: "id,name,currency_code,metadata,*countries", limit: String(limit), offset: String(offset), order: "id",
       }))
       if (!Array.isArray(data.regions) || !Number.isSafeInteger(data.count) || Number(data.count) < 0) invalidResponse()
       for (const item of data.regions as StoreRegion[]) {
         if (!record(item) || typeof item.id !== "string" || typeof item.currency_code !== "string" ||
             !/^[a-z]{3}$/i.test(item.currency_code) || !Array.isArray(item.countries)) invalidResponse()
         if (item.countries.some((country) => record(country) && typeof country.iso_2 === "string" && country.iso_2.toLowerCase() === countryCode)) {
-          return { id: item.id, name: text(item.name) || "Store region", currencyCode: item.currency_code.toLowerCase(), countryCode: countryCode! }
+          const metadata = projectPolicyMetadata(item.metadata)
+          return {
+            id: item.id, name: text(item.name) || "Store region",
+            currencyCode: item.currency_code.toLowerCase(), countryCode: countryCode!,
+            ...(metadata ? { metadata } : {}),
+          }
         }
       }
       if (offset + data.regions.length >= Number(data.count)) throw new CatalogError("region")
@@ -131,9 +146,30 @@ export function createStoreApi(env: StoreEnvironment, fetcher: typeof fetch = fe
     return { products: (data.products as StoreProduct[]).map((item) => toProduct(item, region.currencyCode)), count: Number(data.count) }
   }
 
+  // Sitemap discovery: published handles only, no prices or inventory fetch.
+  async function handles(region: Region, page: number): Promise<{ handles: string[]; count: number }> {
+    if (!Number.isSafeInteger(page) || page < 1 || page > MAX_PAGE) throw new CatalogError("backend")
+    const params = new URLSearchParams({
+      region_id: region.id, country_code: region.countryCode,
+      fields: "handle,+status",
+      limit: String(PAGE_SIZE), offset: String((page - 1) * PAGE_SIZE), order: "id",
+    })
+    const salesChannelId = env.MEDUSA_SALES_CHANNEL_ID?.trim()
+    if (salesChannelId) params.set("sales_channel_id", salesChannelId)
+    const data = await get("store/products", params)
+    if (!Array.isArray(data.products) || !Number.isSafeInteger(data.count) || Number(data.count) < 0) invalidResponse()
+    const handles = (data.products as unknown[]).map((item) => {
+      if (!record(item) || item.status !== "published" || typeof item.handle !== "string" ||
+          !item.handle || item.handle === "." || item.handle === "..") invalidResponse()
+      return item.handle
+    })
+    return { handles, count: Number(data.count) }
+  }
+
   return {
     resolveRegion,
     listProducts: (region: Region, page = 1) => products(region, page),
+    listProductHandles: (region: Region, page = 1) => handles(region, page),
     async getProduct(region: Region, handle: string): Promise<Product | null> {
       const result = await products(region, 1, handle)
       if (result.count === 0 && result.products.length === 0) return null

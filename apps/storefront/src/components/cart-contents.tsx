@@ -53,13 +53,14 @@ export default function CartContents({ cart }: { cart: Cart | null }) {
     <section className="cart-summary notice" aria-labelledby="cart-totals">
       <h2 id="cart-totals">Estimated totals ({cart.currencyCode.toUpperCase()})</h2>
       <dl>
-        <dt>Subtotal (before tax)</dt><dd>{formatPrice(cart.subtotal)}</dd>
+        <dt>Items subtotal (before tax)</dt><dd>{formatPrice(cart.itemSubtotal)}</dd>
         {cart.discountTotal && <><dt>Discounts reported by store</dt><dd>{formatPrice(cart.discountTotal)}</dd></>}
         {cart.taxTotal && <><dt>Estimated tax</dt><dd>{formatPrice(cart.taxTotal)}</dd></>}
         <dt>Estimated total reported by store</dt><dd className="price">{formatPrice(cart.total)}</dd>
       </dl>
-      <p className="muted small">These are Medusa’s current cart estimates, not a final purchase quote. Shipping has not been selected; no free shipping is promised. Tax and availability may change. Checkout and payment are not available.</p>
+      <p className="muted small">These are Medusa’s current cart estimates, not a final purchase quote. The items subtotal excludes shipping; a shipping method is only chosen at checkout, and no free shipping is promised. Tax and availability may change. Checkout and payment are not available.</p>
     </section>
+    <p><Link href="/checkout" className="button">Continue to checkout</Link></p>
     <p><Link href="/store">Continue shopping</Link></p>
   </>
 }

@@ -1,0 +1,15 @@
+NOTICE
+
+This repository includes concepts adapted from medusajs/dtc-starter
+(https://github.com/medusajs/dtc-starter), licensed under the MIT License.
+The upstream reference point for this adaptation is commit edd0c1c1.
+
+The adapted concepts are limited to the shape of local shipping seed data,
+sitemap and robots routes, product structured data, and the region policy
+model. They were modified for Next.js 15 and this repository's local
+conventions. This notice does not claim that the repository is a wholesale
+copy of dtc-starter or that every implementation detail is derived from it.
+
+See LICENSE for this repository's license. The upstream project is separately
+licensed under the MIT License; its license and copyright notices apply to any
+upstream material that may be present.

@@ -6,7 +6,7 @@ import { createMedusaRequest, StoreRequestError } from "./medusa-http.ts"
 import type { Region, StoreEnvironment } from "./store-api.ts"
 
 export type SavedCart = { id: string; regionId: string; countryCode: string | null; salesChannelId: string | null; completed: boolean; cart: Cart }
-const fields = "id,region_id,shipping_address.country_code,currency_code,sales_channel_id,completed_at,subtotal,total,tax_total,discount_total,items.id,items.variant_id,items.product_handle,items.product_title,items.title,items.variant_title,items.thumbnail,items.quantity,items.unit_price,items.is_tax_inclusive,items.total,items.subtotal"
+const fields = "id,region_id,shipping_address.country_code,currency_code,sales_channel_id,completed_at,subtotal,item_subtotal,total,tax_total,discount_total,items.id,items.variant_id,items.product_handle,items.product_title,items.title,items.variant_title,items.thumbnail,items.quantity,items.unit_price,items.is_tax_inclusive,items.total,items.subtotal"
 function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value) }
 function invalid(): never { throw new CartError("backend") }
 export function toSavedCart(raw: unknown): SavedCart {
@@ -40,7 +40,7 @@ export function toSavedCart(raw: unknown): SavedCart {
   })
   return {
     id: raw.id, regionId: raw.region_id, countryCode, salesChannelId: raw.sales_channel_id, completed: raw.completed_at !== null,
-    cart: { currencyCode, lines, subtotal: amount(raw.subtotal), total: amount(raw.total), taxTotal: amount(raw.tax_total), discountTotal: amount(raw.discount_total) },
+    cart: { currencyCode, lines, subtotal: amount(raw.subtotal), itemSubtotal: amount(raw.item_subtotal), total: amount(raw.total), taxTotal: amount(raw.tax_total), discountTotal: amount(raw.discount_total) },
   }
 }
 

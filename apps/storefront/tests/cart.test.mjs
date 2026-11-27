@@ -15,7 +15,7 @@ const region = { id: "reg_us", name: "US", currencyCode: "usd", countryCode: "us
 const variant = { id: "variant_one", title: "Small", options: [{ optionId: "opt_size", value: "S" }], price: { amount: 19.99, currencyCode: "usd" }, manageInventory: true, allowBackorder: false, inventoryQuantity: 5 }
 const product = { id: "prod_one", handle: "shirt", title: "Shirt", options: [{ id: "opt_size", title: "Size", values: ["S"] }], variants: [variant] }
 const rawLine = { id: "cali_one", variant_id: "variant_one", product_handle: "shirt", product_title: "Shirt", variant_title: "Small", quantity: 2, unit_price: 19.99, subtotal: 39.98, total: 39.98, thumbnail: "https://images.example.com/shirt.jpg", is_tax_inclusive: false }
-const rawCart = { id: "cart_secret", region_id: "reg_us", shipping_address: { country_code: "us" }, currency_code: "usd", sales_channel_id: "sc_one", completed_at: null, items: [rawLine], subtotal: 39.98, total: 39.98, tax_total: 0, discount_total: 0 }
+const rawCart = { id: "cart_secret", region_id: "reg_us", shipping_address: { country_code: "us" }, currency_code: "usd", sales_channel_id: "sc_one", completed_at: null, items: [rawLine], subtotal: 39.98, item_subtotal: 39.98, total: 39.98, tax_total: 0, discount_total: 0 }
 const kind = (expected) => (error) => error instanceof CartError && error.kind === expected
 const add = { action: "add", handle: "shirt", variantId: "variant_one", quantity: 1 }
 
@@ -71,12 +71,27 @@ test("public cart projection preserves major units and explicit returned totals,
   const saved = toSavedCart({ ...rawCart, metadata: { private: "SECRET" }, email: "private", items: [{ ...rawLine, metadata: { private: "SECRET" }, thumbnail: "javascript:alert(1)" }] })
   assert.equal(formatPrice(saved.cart.lines[0].unitPrice), "$19.99")
   assert.equal(formatPrice(saved.cart.total), "$39.98")
+  assert.equal(saved.cart.itemSubtotal.amount, 39.98)
   assert.equal(saved.cart.taxTotal.amount, 0)
   assert.equal(saved.cart.lines[0].thumbnail, null)
   assert.doesNotMatch(JSON.stringify(saved.cart), /SECRET|cart_secret|reg_us|sc_one|private|metadata/)
-  const missing = toSavedCart({ ...rawCart, subtotal: undefined, total: undefined, tax_total: undefined, discount_total: undefined, items: [{ ...rawLine, total: undefined, subtotal: undefined }] })
+  const missing = toSavedCart({ ...rawCart, subtotal: undefined, item_subtotal: undefined, total: undefined, tax_total: undefined, discount_total: undefined, items: [{ ...rawLine, total: undefined, subtotal: undefined }] })
   assert.equal(missing.cart.total, null)
+  assert.equal(missing.cart.itemSubtotal, null) // Never derive an item subtotal from subtotal or totals.
   assert.equal(missing.cart.lines[0].total, null) // Never derive a fake grand/line total.
+})
+
+test("cart keeps Medusa item subtotal separate from shipping-inclusive subtotal", async () => {
+  const raw = { ...rawCart, item_subtotal: 10, shipping_subtotal: 5, shipping_total: 5, subtotal: 15, total: 15 }
+  const saved = toSavedCart(raw)
+  assert.equal(saved.cart.itemSubtotal.amount, 10)
+  assert.equal(saved.cart.subtotal.amount, 15) // Medusa cart subtotal includes selected shipping.
+  assert.equal(formatPrice(saved.cart.itemSubtotal), "$10.00")
+  const ctx = setup([{ cart: raw }], { cookie: "cart_secret" })
+  assert.deepEqual(await ctx.service.read(), { cart: saved.cart })
+  const fieldList = ctx.calls[0].url.searchParams.get("fields").split(",")
+  assert.ok(fieldList.includes("item_subtotal"))
+  assert.equal(fieldList.includes("shipping_subtotal"), false)
 })
 
 test("cart projection rejects invalid amounts, malformed records and duplicate lines", () => {

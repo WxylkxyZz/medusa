@@ -2,18 +2,34 @@ import { writeFileSync } from "node:fs"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import {
+  batchLinksWorkflow,
   createApiKeysWorkflow,
   createInventoryItemsWorkflow,
   createInventoryLevelsWorkflow,
+  createLocationFulfillmentSetWorkflow,
+  createPricePreferencesWorkflow,
   createProductsWorkflow,
   createRegionsWorkflow,
   createSalesChannelsWorkflow,
+  createServiceZonesWorkflow,
+  createShippingOptionsWorkflow,
+  createShippingProfilesWorkflow,
   createStockLocationsWorkflow,
   createStoresWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
+  updatePricePreferencesWorkflow,
+  updateProductsWorkflow,
+  updateShippingOptionsWorkflow,
   updateStoresWorkflow,
-} from "@medusajs/medusa/core-flows"
+} from "@medusajs/core-flows"
+import { Modules } from "@medusajs/framework/utils"
+import {
+  LOCAL_SHIPPING_FIXTURE,
+  buildFixtureShippingOptionInput,
+  isFixtureShippingOption,
+  shippingOptionProblems,
+} from "./shipping-fixture"
 
 type Entity = Record<string, unknown>
 
@@ -68,6 +84,35 @@ function findByName(entities: Entity[], names: string[]): Entity | undefined {
   return entities.find((entity) => names.includes(asString(entity.name) ?? ""))
 }
 
+export function findFulfillmentSet(
+  entities: Entity[],
+  name: string,
+  type: string
+): Entity | undefined {
+  return entities.find(
+    (entity) => asString(entity.name) === name && asString(entity.type) === type
+  )
+}
+
+export function hasSalesChannelFulfillmentSet(
+  salesChannel: Entity | undefined,
+  locationId: string,
+  fulfillmentSetId: string
+): boolean {
+  const locations = Array.isArray(salesChannel?.stock_locations)
+    ? salesChannel.stock_locations
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  const location = locations.find((item) => asString(item.id) === locationId)
+  const fulfillmentSets = Array.isArray(location?.fulfillment_sets)
+    ? location.fulfillment_sets
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  return fulfillmentSets.some((item) => asString(item.id) === fulfillmentSetId)
+}
+
 async function runBootstrap({ container }: { container: MedusaContainer }) {
   const adminEmail = process.env.LOCAL_ADMIN_EMAIL || "admin@local.test"
   const publishableKeyPath =
@@ -100,11 +145,31 @@ async function runBootstrap({ container }: { container: MedusaContainer }) {
     region = asEntity(result[0])
   }
   const regionId = requiredId(region, "United States region")
+  if (!Array.isArray(region?.countries)) {
+    region = (
+      await listEntities(container, "region", ["id", "currency_code", "countries.*"])
+    ).find((item) => asString(item.id) === regionId)
+  }
 
   if (asString(region?.currency_code)?.toLowerCase() !== "usd") {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       "The existing United States region is not configured for USD"
+    )
+  }
+  const regionCountries = Array.isArray(region?.countries)
+    ? region.countries
+        .map(asEntity)
+        .filter((country): country is Entity => !!country)
+    : []
+  if (
+    !regionCountries.some(
+      (country) => asString(country.iso_2)?.toLowerCase() === "us"
+    )
+  ) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The United States region is not configured for country us"
     )
   }
 
@@ -141,6 +206,214 @@ async function runBootstrap({ container }: { container: MedusaContainer }) {
   }
   const locationId = requiredId(location, "US Warehouse stock location")
 
+  const loadLocationWithFulfillment = async (): Promise<Entity | undefined> =>
+    (await listEntities(container, "stock_location", [
+      "id",
+      "fulfillment_sets.id",
+      "fulfillment_sets.name",
+      "fulfillment_sets.type",
+      "fulfillment_providers.id",
+    ])).find((item) => asString(item.id) === locationId)
+
+  let locationWithFulfillment = await loadLocationWithFulfillment()
+  const fulfillmentSets = Array.isArray(locationWithFulfillment?.fulfillment_sets)
+    ? locationWithFulfillment.fulfillment_sets
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  let fulfillmentSet = findFulfillmentSet(
+    fulfillmentSets,
+    LOCAL_SHIPPING_FIXTURE.fulfillmentSetName,
+    LOCAL_SHIPPING_FIXTURE.fulfillmentSetType
+  )
+  if (!fulfillmentSet) {
+    // A prior partial run may have created the set but failed before linking it
+    // to this location. Reuse that set instead of creating a duplicate.
+    fulfillmentSet = findFulfillmentSet(
+      await listEntities(container, "fulfillment_set", ["id", "name", "type"]),
+      LOCAL_SHIPPING_FIXTURE.fulfillmentSetName,
+      LOCAL_SHIPPING_FIXTURE.fulfillmentSetType
+    )
+    if (fulfillmentSet) {
+      await batchLinksWorkflow(container).run({
+        input: {
+          create: [
+            {
+              [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+              [Modules.FULFILLMENT]: {
+                fulfillment_set_id: requiredId(
+                  fulfillmentSet,
+                  "US Warehouse shipping fulfillment set"
+                ),
+              },
+            },
+          ],
+        },
+      })
+    } else {
+      // This workflow creates and associates the set internally but returns no
+      // result in Medusa 2.23. Re-query by its stable identity after the write.
+      await createLocationFulfillmentSetWorkflow(container).run({
+        input: {
+          location_id: locationId,
+          fulfillment_set_data: {
+            name: LOCAL_SHIPPING_FIXTURE.fulfillmentSetName,
+            type: LOCAL_SHIPPING_FIXTURE.fulfillmentSetType,
+          },
+        },
+      })
+      fulfillmentSet = findFulfillmentSet(
+        await listEntities(container, "fulfillment_set", ["id", "name", "type"]),
+        LOCAL_SHIPPING_FIXTURE.fulfillmentSetName,
+        LOCAL_SHIPPING_FIXTURE.fulfillmentSetType
+      )
+    }
+  }
+
+  // Always refresh the relation after either link path. Do not rely on the
+  // pre-write graph result, which is stale after a workflow mutation.
+  locationWithFulfillment = await loadLocationWithFulfillment()
+  const linkedFulfillmentSet = Array.isArray(locationWithFulfillment?.fulfillment_sets)
+    ? locationWithFulfillment.fulfillment_sets
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+        .find((item) => asString(item.id) === asString(fulfillmentSet?.id))
+    : undefined
+  if (!linkedFulfillmentSet) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Local bootstrap could not verify the US Warehouse shipping fulfillment set link"
+    )
+  }
+  fulfillmentSet = linkedFulfillmentSet
+  const fulfillmentSetId = requiredId(
+    fulfillmentSet,
+    "US Warehouse shipping fulfillment set"
+  )
+
+  const providerId = LOCAL_SHIPPING_FIXTURE.providerId
+  const fulfillmentProviders = Array.isArray(locationWithFulfillment?.fulfillment_providers)
+    ? locationWithFulfillment.fulfillment_providers
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  if (!fulfillmentProviders.some((provider) => asString(provider.id) === providerId)) {
+    const providers = await listEntities(container, "fulfillment_provider", ["id"])
+    if (!providers.some((provider) => asString(provider.id) === providerId)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `The built-in manual fulfillment provider ${providerId} is not registered`
+      )
+    }
+    await batchLinksWorkflow(container).run({
+      input: {
+        create: [
+          {
+            [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+            [Modules.FULFILLMENT]: { fulfillment_provider_id: providerId },
+          },
+        ],
+      },
+    })
+    // Re-query the relation after linking; the earlier graph response cannot
+    // prove that the stock-location/provider link was persisted.
+    locationWithFulfillment = await loadLocationWithFulfillment()
+    const linkedProviders = Array.isArray(
+      locationWithFulfillment?.fulfillment_providers
+    )
+      ? locationWithFulfillment.fulfillment_providers
+          .map(asEntity)
+          .filter((item): item is Entity => !!item)
+      : []
+    if (!linkedProviders.some((provider) => asString(provider.id) === providerId)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Local bootstrap could not link the manual fulfillment provider ${providerId}`
+      )
+    }
+  }
+
+  const fulfillmentSetWithZones = (await listEntities(
+    container,
+    "fulfillment_set",
+    ["id", "service_zones.id", "service_zones.name", "service_zones.geo_zones.*"]
+  )).find((item) => asString(item.id) === fulfillmentSetId)
+  const serviceZones = Array.isArray(fulfillmentSetWithZones?.service_zones)
+    ? fulfillmentSetWithZones.service_zones
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  let serviceZone = serviceZones.find(
+    (zone) => asString(zone.name) === LOCAL_SHIPPING_FIXTURE.serviceZoneName
+  )
+  if (!serviceZone) {
+    const { result } = await createServiceZonesWorkflow(container).run({
+      input: {
+        data: [
+          {
+            name: LOCAL_SHIPPING_FIXTURE.serviceZoneName,
+            fulfillment_set_id: fulfillmentSetId,
+            geo_zones: [
+              {
+                type: "country",
+                country_code: LOCAL_SHIPPING_FIXTURE.serviceZoneCountryCode,
+              },
+            ],
+          },
+        ],
+      },
+    })
+    serviceZone = asEntity(result[0])
+  }
+  const serviceZoneId = requiredId(serviceZone, "United States shipping service zone")
+  serviceZone =
+    (await listEntities(container, "service_zone", ["id", "geo_zones.*"])).find(
+      (item) => asString(item.id) === serviceZoneId
+    ) ?? serviceZone
+  const geoZones = Array.isArray(serviceZone?.geo_zones)
+    ? serviceZone.geo_zones
+        .map(asEntity)
+        .filter((item): item is Entity => !!item)
+    : []
+  if (
+    !geoZones.some(
+      (geoZone) =>
+        asString(geoZone.type) === "country" &&
+        asString(geoZone.country_code)?.toLowerCase() ===
+          LOCAL_SHIPPING_FIXTURE.serviceZoneCountryCode
+    )
+  ) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The United States shipping service zone does not cover country us"
+    )
+  }
+
+  const regionPreferences = await listEntities(container, "price_preference", [
+    "id",
+    "attribute",
+    "value",
+    "is_tax_inclusive",
+  ])
+  const regionPreference = regionPreferences.find(
+    (preference) =>
+      asString(preference.attribute) === "region_id" &&
+      asString(preference.value) === regionId
+  )
+  if (regionPreference && regionPreference.is_tax_inclusive === true) {
+    await updatePricePreferencesWorkflow(container).run({
+      input: {
+        selector: { id: [requiredId(regionPreference, "United States price preference")] },
+        update: { is_tax_inclusive: false },
+      },
+    })
+  }
+  if (!regionPreference) {
+    await createPricePreferencesWorkflow(container).run({
+      input: [{ attribute: "region_id", value: regionId, is_tax_inclusive: false }],
+    })
+  }
+
   const linkedSalesChannels = Array.isArray(location?.sales_channels)
     ? location.sales_channels
         .map(asEntity)
@@ -151,6 +424,25 @@ async function runBootstrap({ container }: { container: MedusaContainer }) {
     await linkSalesChannelsToStockLocationWorkflow(container).run({
       input: { id: locationId, add: [salesChannelId] },
     })
+  }
+  const salesChannelWithFulfillment = (
+    await listEntities(container, "sales_channel", [
+      "id",
+      "stock_locations.id",
+      "stock_locations.fulfillment_sets.id",
+    ])
+  ).find((item) => asString(item.id) === salesChannelId)
+  if (
+    !hasSalesChannelFulfillmentSet(
+      salesChannelWithFulfillment,
+      locationId,
+      fulfillmentSetId
+    )
+  ) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Local bootstrap could not verify sales channel to stock location to fulfillment set"
+    )
   }
 
   const stores = await listEntities(container, "store", [
@@ -294,6 +586,7 @@ async function runBootstrap({ container }: { container: MedusaContainer }) {
     "handle",
     "title",
     "status",
+    "shipping_profile.id",
   ])
   let product = products.find(
     (item) => asString(item.handle) === "test-product"
@@ -325,13 +618,148 @@ async function runBootstrap({ container }: { container: MedusaContainer }) {
     product = asEntity(result[0])
   }
 
+  const productId = requiredId(product, "test-product")
+  const profiles = await listEntities(container, "shipping_profile", [
+    "id",
+    "name",
+    "type",
+  ])
+  let shippingProfile = profiles.find(
+    (profile) =>
+      asString(profile.name) === LOCAL_SHIPPING_FIXTURE.shippingProfileName
+  )
+  if (!shippingProfile) {
+    const { result } = await createShippingProfilesWorkflow(container).run({
+      input: {
+        data: [
+          {
+            name: LOCAL_SHIPPING_FIXTURE.shippingProfileName,
+            type: LOCAL_SHIPPING_FIXTURE.shippingProfileType,
+          },
+        ],
+      },
+    })
+    shippingProfile = asEntity(result[0])
+  }
+  const shippingProfileId = requiredId(
+    shippingProfile,
+    "TEST-001 shipping profile"
+  )
+  const currentProduct = (
+    await listEntities(container, "product", ["id", "shipping_profile.id"])
+  ).find((item) => asString(item.id) === productId)
+  const currentProductShippingProfileId = asString(
+    asEntity(currentProduct?.shipping_profile)?.id
+  )
+  if (currentProductShippingProfileId !== shippingProfileId) {
+    await updateProductsWorkflow(container).run({
+      input: {
+        selector: { id: productId },
+        update: { shipping_profile_id: shippingProfileId },
+      },
+    })
+  }
+  const verifiedProduct = (
+    await listEntities(container, "product", ["id", "shipping_profile.id"])
+  ).find((item) => asString(item.id) === productId)
+  if (
+    asString(asEntity(verifiedProduct?.shipping_profile)?.id) !==
+    shippingProfileId
+  ) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Local bootstrap could not link TEST-001 to the Standard Shipping profile"
+    )
+  }
+
+  const shippingOptions = await listEntities(container, "shipping_option", [
+    "id",
+    "name",
+    "price_type",
+    "service_zone_id",
+    "shipping_profile_id",
+    "provider_id",
+    "type.*",
+    "prices.*",
+  ])
+  let shippingOption = shippingOptions.find((option) =>
+    isFixtureShippingOption(option, serviceZoneId, shippingProfileId)
+  )
+  if (!shippingOption) {
+    const { result } = await createShippingOptionsWorkflow(container).run({
+      input: [buildFixtureShippingOptionInput(serviceZoneId, shippingProfileId)],
+    })
+    shippingOption = asEntity(result[0])
+  } else if (
+    shippingOptionProblems(
+      shippingOption as Parameters<typeof shippingOptionProblems>[0],
+      serviceZoneId,
+      shippingProfileId
+    ).length
+  ) {
+    await updateShippingOptionsWorkflow(container).run({
+      input: [
+        {
+          id: requiredId(shippingOption, "Standard Shipping option"),
+          name: LOCAL_SHIPPING_FIXTURE.shippingOptionName,
+          service_zone_id: serviceZoneId,
+          shipping_profile_id: shippingProfileId,
+          provider_id: LOCAL_SHIPPING_FIXTURE.providerId,
+          type: {
+            label: LOCAL_SHIPPING_FIXTURE.shippingOptionTypeLabel,
+            code: LOCAL_SHIPPING_FIXTURE.shippingOptionTypeCode,
+            description: LOCAL_SHIPPING_FIXTURE.shippingOptionTypeDescription,
+          },
+          price_type: "flat",
+          prices: [
+            {
+              currency_code: LOCAL_SHIPPING_FIXTURE.currencyCode,
+              amount: LOCAL_SHIPPING_FIXTURE.amount,
+            },
+          ],
+        },
+      ],
+    })
+  }
+  const shippingOptionId = requiredId(
+    shippingOption,
+    "Standard Shipping option"
+  )
+  const resolvedShippingOption = (
+    await listEntities(container, "shipping_option", [
+      "id",
+      "name",
+      "price_type",
+      "service_zone_id",
+      "shipping_profile_id",
+      "provider_id",
+      "type.description",
+      "prices.*",
+    ])
+  ).find((option) => asString(option.id) === shippingOptionId)
+  const optionProblems = shippingOptionProblems(
+    resolvedShippingOption as Parameters<typeof shippingOptionProblems>[0],
+    serviceZoneId,
+    shippingProfileId
+  )
+  if (optionProblems.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Local bootstrap could not resolve the expected Standard Shipping option: ${optionProblems.join(", ")}`
+    )
+  }
+
   return {
     store_id: requiredId(store ?? undefined, "local store"),
     region_id: regionId,
     sales_channel_id: salesChannelId,
     stock_location_id: locationId,
     publishable_key_file: publishableKeyPath,
-    product_id: requiredId(product, "test-product"),
+    product_id: productId,
+    fulfillment_set_id: fulfillmentSetId,
+    service_zone_id: serviceZoneId,
+    shipping_profile_id: shippingProfileId,
+    shipping_option_id: shippingOptionId,
   }
 }
 
